@@ -3,54 +3,12 @@ package main
 import (
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net"
 )
 
-// only needed below for sample processing
-
-func main() {
-	// listen on all interfaces
-	ln, err := net.Listen("tcp", "10.0.0.1:4189")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Fatalln(err)
-		}
-		// conn.Write([]byte(newmessage + "\n"))
-		go handleRequest(conn)
-	}
-}
-
-func handleRequest(conn net.Conn) {
-	// rd := bufio.NewReader(conn)
-	log.Println("Got connection", conn.RemoteAddr())
-	defer conn.Close()
-	buff := make([]byte, 1024)
-	for {
-		l, err := conn.Read(buff)
-
-		if err != nil {
-			fmt.Println("Error reading:", err.Error())
-			break
-		}
-		data := buff[:l]
-
-		parseCommonHeader(data[:4])
-
-		parseCommonObjectHeader(data[4:8])
-
-		parseOpenObject(data[8:12])
-
-		parseStatefulPCECap(data[12:20])
-
-	}
-}
+const msgTooShortErr = "recived msg is too short to parse common header and common object header out of it"
 
 // fmt.Printf("Data: %08b \n", data[:4])
 func printAsJSON(i interface{}) {
@@ -157,23 +115,82 @@ func parseStatefulPCECap(data []byte) *StatefulPCECapability {
 	return sCap
 }
 
-func uintToBool(i uint) (bool, error) {
-	if i == 0 {
-		return false, nil
-	} else if i == 1 {
-		return true, nil
-	}
-	return false, errors.New("Bool value is not 1 or zero")
+type PCEPSession struct {
+	State    int
+	Conn     net.Conn
+	ID       int
+	RemoteOK bool
 }
 
-func bits(by byte, subset ...uint) (r uint) {
-	b := uint(by)
-	i := uint(0)
-	for _, v := range subset {
-		if b&(1<<v) > 0 {
-			r = r | 1<<uint(i)
-		}
-		i++
+//RcvSessionOpen recive msg handler
+func (p *PCEPSession) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
+	if coh.ObjectClass != 1 && coh.ObjectType != 1 {
+		log.Printf("Remote IP: %s, object class and object type do not mathc OPEN msg RFC defenitions", p.Conn.RemoteAddr())
+		return
 	}
-	return
+	oo := parseOpenObject(data[8:12])
+	p.ID = int(oo.SID)
+	p.RemoteOK = true
+	p.State = 1
+	parseStatefulPCECap(data[12:20])
+}
+
+//SendSessionOpen send OPNE msg handler
+func (p *PCEPSession) SendSessionOpen() {
+	var a uint8
+	a = 1
+	b := make([]byte, 4)
+	b[0] = a
+}
+
+func handleRequest(conn net.Conn) {
+	// rd := bufio.NewReader(conn)
+	log.Println("Got connection", conn.RemoteAddr())
+	defer conn.Close()
+	buff := make([]byte, 1024)
+	pSession := PCEPSession{
+		Conn: conn,
+	}
+	for {
+		l, err := conn.Read(buff)
+		if err != nil {
+			fmt.Println("Error reading:", err.Error())
+			break
+		}
+		data := buff[:l]
+		if len(data) < 8 {
+			log.Println(msgTooShortErr)
+			continue
+		}
+		ch := parseCommonHeader(data[:4])
+		coh := parseCommonObjectHeader(data[4:8])
+
+		switch {
+		case ch.MessageType == 1:
+			if len(data) < 12 {
+				log.Println("OPEN msg is too short")
+				continue
+			}
+			pSession.RcvSessionOpen(coh, data)
+		default:
+			log.Println("Unknown msg recived")
+		}
+
+	}
+}
+
+func main() {
+	// listen on all interfaces
+	ln, err := net.Listen("tcp", "10.0.0.1:4189")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Fatalln(err)
+		}
+		// conn.Write([]byte(newmessage + "\n"))
+		go handleRequest(conn)
+	}
 }
