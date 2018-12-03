@@ -68,6 +68,30 @@ type SRPCECap struct {
 	MSD        uint8
 }
 
+func parseSRCap(data []byte) *SRPCECap {
+	fmt.Printf("SR Cap: %08b \n", data)
+	NAIToSID, err := uintToBool(bits(data[6], 6))
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	NoMSDLimit, err := uintToBool(bits(data[6], 7))
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	srCap := &SRPCECap{
+		Type:       binary.BigEndian.Uint16(data[:2]),
+		Length:     binary.BigEndian.Uint16(data[2:4]),
+		Reserved:   binary.BigEndian.Uint16(data[4:6]),
+		NAIToSID:   NAIToSID,
+		NoMSDLimit: NoMSDLimit,
+		MSD:        data[7],
+	}
+	printAsJSON(srCap)
+	return srCap
+}
+
 //OpenObject to store PCEP OPEN Object
 type OpenObject struct {
 	Version   uint8
@@ -98,7 +122,6 @@ type StatefulPCECapability struct {
 }
 
 func parseStatefulPCECap(data []byte) *StatefulPCECapability {
-	fmt.Printf("StatefulPCECapability: %08b \n", data)
 	UFlag, err := uintToBool(bits(data[7], 0))
 	if err != nil {
 		fmt.Println(err)
@@ -133,13 +156,16 @@ func (p *PCEPSession) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
 	p.RemoteOK = true
 	p.State = 1
 	parseStatefulPCECap(data[12:20])
+	parseSRCap(data[20:28])
 }
 
 //SendSessionOpen send OPNE msg handler
 func (p *PCEPSession) SendSessionOpen() {
 	var a uint8
 	a = 1
-	b := make([]byte, 4)
+	b := []byte{
+		0: 1,
+	}
 	b[0] = a
 }
 
@@ -158,10 +184,12 @@ func handleRequest(conn net.Conn) {
 			break
 		}
 		data := buff[:l]
+
 		if len(data) < 8 {
 			log.Println(msgTooShortErr)
 			continue
 		}
+		fmt.Printf("Whole MSG: %08b \n", data)
 		ch := parseCommonHeader(data[:4])
 		coh := parseCommonObjectHeader(data[4:8])
 

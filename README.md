@@ -74,3 +74,42 @@
        relationship between this field and the L bit.
  The above object is  2+2+4 = 8 bytes and now we can see this adds up
  if we test agains a juniper device.
+
+ Whole MSG: [00100000 00000001 00000000 00011100 00000001 00010000 00000000 00011000 00100000 00011110 01111000 00100010 00000000 00010000 00000000 00000100 00000000 00000000 00000000 00000101 00000000 00011010 00000000 00000100 00000000 00000000 00000000 00000101] 
+{
+  "Version": 1,
+  "Flags": 0,
+  "MessageType": 1,
+  "MessageLength": 28
+}
+{
+  "ObjectClass": 1,
+  "ObjectType": 1,
+  "Reservedfield": 0,
+  "ProcessingRule": false,
+  "Ignore": false,
+  "ObjectLength": 24
+}
+{
+  "Version": 1,
+  "Flags": 0,
+  "Keepalive": 30,
+  "DeadTimer": 120,
+  "SID": 34
+}
+UFlag: 00000001 
+{
+  "Type": 16,
+  "Length": 4,
+  "Flags": 5,
+  "UFlag": true
+}
+SR Cap: [00000000 00011010 00000000 00000100 00000000 00000000 00000000 00000101] 
+{
+  "Type": 26,
+  "Length": 4,
+  "Reserved": 0,
+  "NAIToSID": false,
+  "NoMSDLimit": false,
+  "MSD": 5
+}
