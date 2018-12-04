@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 )
 
 const msgTooShortErr = "recived msg is too short to parse common header and common object header out of it"
@@ -129,10 +130,11 @@ func parseStatefulPCECap(data []byte) *StatefulPCECapability {
 }
 
 type PCEPSession struct {
-	State    int
-	Conn     net.Conn
-	ID       int
-	RemoteOK bool
+	State     int
+	Conn      net.Conn
+	ID        uint8
+	RemoteOK  bool
+	Keepalive int
 }
 
 //RcvSessionOpen recive msg handler
@@ -142,11 +144,36 @@ func (p *PCEPSession) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
 		return
 	}
 	oo := parseOpenObject(data[8:12])
-	p.ID = int(oo.SID)
+	p.ID = oo.SID
+	p.Keepalive = int(oo.Keepalive)
 	p.RemoteOK = true
 	p.State = 1
 	parseStatefulPCECap(data[12:20])
 	parseSRCap(data[20:28])
+	p.SendSessionOpen()
+}
+
+//SendKeepAlive start sending keep alive msgs
+func (p *PCEPSession) SendKeepAlive() {
+	commH := []byte{
+		0: 32,
+		1: 2,
+		2: 0,
+		3: 4,
+	}
+	var firstSent bool
+	for {
+		if firstSent {
+			time.Sleep(time.Second * time.Duration(p.Keepalive))
+		}
+		i, err := p.Conn.Write(commH)
+		if err != nil {
+			log.Println(err)
+		}
+		log.Printf("keep alive sent %d bytes", i)
+		firstSent = true
+	}
+
 }
 
 //SendSessionOpen send OPNE msg handler
@@ -170,12 +197,68 @@ func (p *PCEPSession) SendSessionOpen() {
 		0: 32,
 		1: 30,
 		2: 120,
-		3: 1,
+		3: p.ID,
 	}
-	// StatefulPCECapability
-
+	stCap := []byte{
+		0: 0,
+		1: 16,
+		2: 0,
+		3: 4,
+		4: 0,
+		5: 0,
+		6: 0,
+		7: 5,
+	}
+	srCap := []byte{
+		0: 0,
+		1: 26,
+		2: 0,
+		3: 4,
+		4: 0,
+		5: 0,
+		6: 0,
+		7: 5,
+	}
 	packet := append(commH, commObjH...)
 	packet = append(packet, open...)
+	packet = append(packet, stCap...)
+	packet = append(packet, srCap...)
+	fmt.Printf("Sending open %08b \n", packet)
+	i, err := p.Conn.Write(packet)
+	if err != nil {
+		log.Println(err)
+	}
+	log.Printf("Sent: %d byte", i)
+	p.SendKeepAlive()
+}
+
+//ErrMsg  rfc8231#section-7.15
+type ErrMsg struct {
+	Reserved   uint8
+	Flags      uint8
+	ErrorType  uint8
+	ErrorValue uint8
+}
+
+func parseErr(data []byte) {
+	e := &ErrMsg{
+		Reserved:   data[0],
+		Flags:      data[1],
+		ErrorType:  data[2],
+		ErrorValue: data[3],
+	}
+	printAsJSON(e)
+}
+
+type SRPObject struct {
+	Flags       uint32
+	SRPIDNumber uint32
+}
+
+func parseSRP(data []byte) {
+	// sr := &SRPObject{
+	// 	Flags:
+	// }
 }
 
 func handleRequest(conn net.Conn) {
@@ -194,7 +277,7 @@ func handleRequest(conn net.Conn) {
 		}
 		data := buff[:l]
 
-		if len(data) < 8 {
+		if len(data) < 4 {
 			log.Println(msgTooShortErr)
 			continue
 		}
@@ -208,7 +291,15 @@ func handleRequest(conn net.Conn) {
 				log.Println("OPEN msg is too short")
 				continue
 			}
-			pSession.RcvSessionOpen(coh, data)
+			go pSession.RcvSessionOpen(coh, data)
+		case ch.MessageType == 6:
+			if len(data) < 12 {
+				log.Println("ERR msg is too short")
+				continue
+			}
+			parseErr(data[8:])
+		case ch.MessageType == 2:
+			log.Printf("recv keepalive from %s peer", conn.RemoteAddr().String())
 		default:
 			log.Println("Unknown msg recived")
 		}
