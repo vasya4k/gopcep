@@ -2,22 +2,12 @@ package main
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 )
 
 const msgTooShortErr = "recived msg is too short to parse common header and common object header out of it"
-
-// fmt.Printf("Data: %08b \n", data[:4])
-func printAsJSON(i interface{}) {
-	b, err := json.MarshalIndent(i, "", "  ")
-	if err != nil {
-		log.Println(err)
-	}
-	fmt.Println(string(b))
-}
 
 //CommonHeader to store PCEP CommonHeader
 type CommonHeader struct {
@@ -161,12 +151,31 @@ func (p *PCEPSession) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
 
 //SendSessionOpen send OPNE msg handler
 func (p *PCEPSession) SendSessionOpen() {
-	var a uint8
-	a = 1
-	b := []byte{
-		0: 1,
+	//[00100000 00000001 00000000 00011100]
+	commH := []byte{
+		0: 32,
+		1: 1,
+		2: 0,
+		3: 28,
 	}
-	b[0] = a
+	// 00000001 00010000 00000000 00011000
+	commObjH := []byte{
+		0: 1,
+		1: 16,
+		2: 0,
+		3: 24,
+	}
+	// 00100000 00011110 01111000 00000001
+	open := []byte{
+		0: 32,
+		1: 30,
+		2: 120,
+		3: 1,
+	}
+	// StatefulPCECapability
+
+	packet := append(commH, commObjH...)
+	packet = append(packet, open...)
 }
 
 func handleRequest(conn net.Conn) {

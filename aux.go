@@ -1,6 +1,11 @@
 package main
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+)
 
 const uintToBoolErr = "Bool value is not 1 or zero"
 
@@ -23,4 +28,13 @@ func bits(by byte, subset ...uint) (r uint) {
 		i++
 	}
 	return
+}
+
+// fmt.Printf("Data: %08b \n", data[:4])
+func printAsJSON(i interface{}) {
+	b, err := json.MarshalIndent(i, "", "  ")
+	if err != nil {
+		log.Println(err)
+	}
+	fmt.Println(string(b))
 }
