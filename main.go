@@ -129,14 +129,6 @@ func parseStatefulPCECap(data []byte) *StatefulPCECapability {
 	return sCap
 }
 
-type PCEPSession struct {
-	State     int
-	Conn      net.Conn
-	ID        uint8
-	RemoteOK  bool
-	Keepalive int
-}
-
 //RcvSessionOpen recive msg handler
 func (p *PCEPSession) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
 	if coh.ObjectClass != 1 && coh.ObjectType != 1 {
@@ -261,49 +253,65 @@ func parseSRP(data []byte) {
 	// }
 }
 
-func handleRequest(conn net.Conn) {
-	// rd := bufio.NewReader(conn)
+//PCEPSession ssae
+type PCEPSession struct {
+	State     int
+	Conn      net.Conn
+	ID        uint8
+	RemoteOK  bool
+	Keepalive int
+}
+
+func (p *PCEPSession) handleMSG(data []byte, conn net.Conn) {
+	p.Conn = conn
+	fmt.Printf("Whole MSG: %08b \n", data)
+	ch := parseCommonHeader(data[:4])
+	coh := parseCommonObjectHeader(data[4:8])
+	switch {
+	case ch.MessageType == 1:
+		if len(data) < 12 {
+			log.Println("OPEN msg is too short")
+		}
+		go p.RcvSessionOpen(coh, data)
+	case ch.MessageType == 2:
+		log.Printf("recv keepalive from %s peer", p.Conn.RemoteAddr().String())
+	case ch.MessageType == 3:
+		log.Println("recv path computation request ")
+	case ch.MessageType == 4:
+		log.Println("recv path computation reply ")
+	case ch.MessageType == 5:
+		log.Println("recv notification ")
+	case ch.MessageType == 6:
+		if len(data) < 12 {
+			log.Println("ERR msg is too short")
+		}
+		parseErr(data[8:])
+	case ch.MessageType == 7:
+		log.Println("recv close msg")
+	case ch.MessageType == 10:
+		log.Println("recv PCC State report ")
+	case ch.MessageType == 11:
+		log.Println("pcc update msg recved")
+	default:
+		log.Println("Unknown msg recived")
+	}
+}
+
+func handleTCPConn(conn net.Conn) {
+	var p PCEPSession
 	log.Println("Got connection", conn.RemoteAddr())
 	defer conn.Close()
 	buff := make([]byte, 1024)
-	pSession := PCEPSession{
-		Conn: conn,
-	}
 	for {
 		l, err := conn.Read(buff)
 		if err != nil {
 			fmt.Println("Error reading:", err.Error())
 			break
 		}
-		data := buff[:l]
-
-		if len(data) < 4 {
-			log.Println(msgTooShortErr)
+		if l < 4 {
 			continue
 		}
-		fmt.Printf("Whole MSG: %08b \n", data)
-		ch := parseCommonHeader(data[:4])
-		coh := parseCommonObjectHeader(data[4:8])
-
-		switch {
-		case ch.MessageType == 1:
-			if len(data) < 12 {
-				log.Println("OPEN msg is too short")
-				continue
-			}
-			go pSession.RcvSessionOpen(coh, data)
-		case ch.MessageType == 6:
-			if len(data) < 12 {
-				log.Println("ERR msg is too short")
-				continue
-			}
-			parseErr(data[8:])
-		case ch.MessageType == 2:
-			log.Printf("recv keepalive from %s peer", conn.RemoteAddr().String())
-		default:
-			log.Println("Unknown msg recived")
-		}
-
+		p.handleMSG(buff[:l], conn)
 	}
 }
 
@@ -319,6 +327,6 @@ func main() {
 			log.Fatalln(err)
 		}
 		// conn.Write([]byte(newmessage + "\n"))
-		go handleRequest(conn)
+		go handleTCPConn(conn)
 	}
 }
