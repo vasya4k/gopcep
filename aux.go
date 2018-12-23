@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 )
 
 const uintToBoolErr = "Bool value is not 1 or zero"
@@ -18,7 +21,7 @@ func uintToBool(i uint) (bool, error) {
 	return false, errors.New(uintToBoolErr)
 }
 
-func bits(by byte, subset ...uint) (r uint) {
+func readBits(by byte, subset ...uint) (r uint) {
 	b := uint(by)
 	i := uint(0)
 	for _, v := range subset {
@@ -37,4 +40,32 @@ func printAsJSON(i interface{}) {
 		log.Println(err)
 	}
 	fmt.Println(string(b))
+}
+
+func padBytes(b []byte, blocksize int) ([]byte, error) {
+	if blocksize <= 0 {
+		return nil, errors.New("invalid blocksize")
+	}
+	if b == nil || len(b) == 0 {
+		return nil, errors.New("invalid data ")
+	}
+	n := blocksize - (len(b) % blocksize)
+	pb := make([]byte, len(b)+n)
+	copy(pb, b)
+	// copy(pb[len(b):], bytes.Repeat([]byte{byte(n)}, n))
+	return pb, nil
+}
+
+func ipToUnit32(ipStr string) (uint32, error) {
+	var res uint32
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return 0, errors.New("not a valid address")
+	}
+	ipv4 := ip.To4()
+	if ipv4 == nil {
+		return 0, errors.New("not a IPv4 address")
+	}
+	binary.Read(bytes.NewBuffer(ipv4), binary.BigEndian, &res)
+	return res, nil
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"time"
 )
 
 const msgTooShortErr = "recived msg is too short to parse common header and common object header out of it"
@@ -61,12 +60,12 @@ type SRPCECap struct {
 
 func parseSRCap(data []byte) *SRPCECap {
 	fmt.Printf("SR Cap: %08b \n", data)
-	NAIToSID, err := uintToBool(bits(data[6], 6))
+	NAIToSID, err := uintToBool(readBits(data[6], 6))
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	NoMSDLimit, err := uintToBool(bits(data[6], 7))
+	NoMSDLimit, err := uintToBool(readBits(data[6], 7))
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -113,12 +112,12 @@ type StatefulPCECapability struct {
 }
 
 func parseStatefulPCECap(data []byte) *StatefulPCECapability {
-	UFlag, err := uintToBool(bits(data[7], 0))
+	UFlag, err := uintToBool(readBits(data[7], 0))
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	fmt.Printf("UFlag: %08b \n", bits(data[7], 0))
+	fmt.Printf("UFlag: %08b \n", readBits(data[7], 0))
 	sCap := &StatefulPCECapability{
 		Type:   binary.BigEndian.Uint16(data[:2]),
 		Length: binary.BigEndian.Uint16(data[2:4]),
@@ -129,99 +128,8 @@ func parseStatefulPCECap(data []byte) *StatefulPCECapability {
 	return sCap
 }
 
-//RcvSessionOpen recive msg handler
-func (p *PCEPSession) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
-	if coh.ObjectClass != 1 && coh.ObjectType != 1 {
-		log.Printf("Remote IP: %s, object class and object type do not mathc OPEN msg RFC defenitions", p.Conn.RemoteAddr())
-		return
-	}
-	oo := parseOpenObject(data[8:12])
-	p.ID = oo.SID
-	p.Keepalive = int(oo.Keepalive)
-	p.RemoteOK = true
-	p.State = 1
-	parseStatefulPCECap(data[12:20])
-	parseSRCap(data[20:28])
-	p.SendSessionOpen()
-}
+func (p *PCEPSession) initLSP() {
 
-//SendKeepAlive start sending keep alive msgs
-func (p *PCEPSession) SendKeepAlive() {
-	commH := []byte{
-		0: 32,
-		1: 2,
-		2: 0,
-		3: 4,
-	}
-	var firstSent bool
-	for {
-		if firstSent {
-			time.Sleep(time.Second * time.Duration(p.Keepalive))
-		}
-		i, err := p.Conn.Write(commH)
-		if err != nil {
-			log.Println(err)
-		}
-		log.Printf("keep alive sent %d bytes", i)
-		firstSent = true
-	}
-
-}
-
-//SendSessionOpen send OPNE msg handler
-func (p *PCEPSession) SendSessionOpen() {
-	//[00100000 00000001 00000000 00011100]
-	commH := []byte{
-		0: 32,
-		1: 1,
-		2: 0,
-		3: 28,
-	}
-	// 00000001 00010000 00000000 00011000
-	commObjH := []byte{
-		0: 1,
-		1: 16,
-		2: 0,
-		3: 24,
-	}
-	// 00100000 00011110 01111000 00000001
-	open := []byte{
-		0: 32,
-		1: 30,
-		2: 120,
-		3: p.ID,
-	}
-	stCap := []byte{
-		0: 0,
-		1: 16,
-		2: 0,
-		3: 4,
-		4: 0,
-		5: 0,
-		6: 0,
-		7: 5,
-	}
-	srCap := []byte{
-		0: 0,
-		1: 26,
-		2: 0,
-		3: 4,
-		4: 0,
-		5: 0,
-		6: 0,
-		7: 5,
-	}
-	packet := append(commH, commObjH...)
-	packet = append(packet, open...)
-	packet = append(packet, stCap...)
-	packet = append(packet, srCap...)
-	fmt.Printf("Sending open %08b \n", packet)
-	i, err := p.Conn.Write(packet)
-	if err != nil {
-		log.Println(err)
-	}
-	log.Printf("Sent: %d byte", i)
-	p.SendKeepAlive()
 }
 
 //ErrMsg  rfc8231#section-7.15
@@ -253,50 +161,6 @@ func parseSRP(data []byte) {
 	// }
 }
 
-//PCEPSession ssae
-type PCEPSession struct {
-	State     int
-	Conn      net.Conn
-	ID        uint8
-	RemoteOK  bool
-	Keepalive int
-}
-
-func (p *PCEPSession) handleMSG(data []byte, conn net.Conn) {
-	p.Conn = conn
-	fmt.Printf("Whole MSG: %08b \n", data)
-	ch := parseCommonHeader(data[:4])
-	coh := parseCommonObjectHeader(data[4:8])
-	switch {
-	case ch.MessageType == 1:
-		if len(data) < 12 {
-			log.Println("OPEN msg is too short")
-		}
-		go p.RcvSessionOpen(coh, data)
-	case ch.MessageType == 2:
-		log.Printf("recv keepalive from %s peer", p.Conn.RemoteAddr().String())
-	case ch.MessageType == 3:
-		log.Println("recv path computation request ")
-	case ch.MessageType == 4:
-		log.Println("recv path computation reply ")
-	case ch.MessageType == 5:
-		log.Println("recv notification ")
-	case ch.MessageType == 6:
-		if len(data) < 12 {
-			log.Println("ERR msg is too short")
-		}
-		parseErr(data[8:])
-	case ch.MessageType == 7:
-		log.Println("recv close msg")
-	case ch.MessageType == 10:
-		log.Println("recv PCC State report ")
-	case ch.MessageType == 11:
-		log.Println("pcc update msg recved")
-	default:
-		log.Println("Unknown msg recived")
-	}
-}
-
 func handleTCPConn(conn net.Conn) {
 	var p PCEPSession
 	log.Println("Got connection", conn.RemoteAddr())
@@ -311,7 +175,7 @@ func handleTCPConn(conn net.Conn) {
 		if l < 4 {
 			continue
 		}
-		p.handleMSG(buff[:l], conn)
+		p.handleMsg(buff[:l], conn)
 	}
 }
 

@@ -223,3 +223,20 @@ SR Cap: [00000000 00011010 00000000 00000100 00000000 00000000 00000000 00000101
   "NoMSDLimit": false,
   "MSD": 5
 }
+
+
+
+{
+  "Version": 1,
+  "Flags": 0,
+  "MessageType": 6,
+  "MessageLength": 36
+}
+{
+  "ObjectClass": 13,
+  "ObjectType": 1,
+  "Reservedfield": 0,
+  "ProcessingRule": false,
+  "Ignore": false,
+  "ObjectLength": 8
+}
