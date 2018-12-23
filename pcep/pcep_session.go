@@ -1,4 +1,4 @@
-package main
+package pcep
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 )
 
 //PCEPSession ssae
-type PCEPSession struct {
+type Session struct {
 	State     int
 	Conn      net.Conn
 	ID        uint8
@@ -266,7 +266,7 @@ func newEndpointsPbj(srcStr, dstStr string) ([]byte, error) {
 // https://tools.ietf.org/html/rfc8231#section-7.3
 // Operational - 3 bits on PCC will always be set to zero
 // so not accepting it as a param
-func (p *PCEPSession) newLSPObj(delegate, sync, remove, admin bool) ([]byte, error) {
+func (p *Session) newLSPObj(delegate, sync, remove, admin bool) ([]byte, error) {
 	p.IDCounter++
 	// 2 ** 20 - 1 = 1048575 checking for overflow of 20bits
 	if p.IDCounter > 1048575 {
@@ -298,7 +298,7 @@ func (p *PCEPSession) newLSPObj(delegate, sync, remove, admin bool) ([]byte, err
 }
 
 //RcvSessionOpen recive msg handler
-func (p *PCEPSession) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
+func (p *Session) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
 	if coh.ObjectClass != 1 && coh.ObjectType != 1 {
 		log.Printf("Remote IP: %s, object class and object type do not mathc OPEN msg RFC defenitions", p.Conn.RemoteAddr())
 		return
@@ -313,7 +313,7 @@ func (p *PCEPSession) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
 }
 
 //SendKeepAlive start sending keep alive msgs
-func (p *PCEPSession) SendKeepAlive() {
+func (p *Session) SendKeepAlive() {
 	commH := []byte{
 		0: 32,
 		1: 2,
@@ -334,8 +334,10 @@ func (p *PCEPSession) SendKeepAlive() {
 	}
 
 }
+func (p *Session) initLSP() {}
 
-func (p *PCEPSession) handleMsg(data []byte, conn net.Conn) {
+// HandleNewMsg handles incoming data
+func (p *Session) HandleNewMsg(data []byte, conn net.Conn) {
 	p.Conn = conn
 	fmt.Printf("Whole MSG: %08b \n", data)
 	ch := parseCommonHeader(data[:4])
@@ -374,7 +376,7 @@ func (p *PCEPSession) handleMsg(data []byte, conn net.Conn) {
 }
 
 //SendSessionOpen send OPNE msg handler
-func (p *PCEPSession) SendSessionOpen() {
+func (p *Session) SendSessionOpen() {
 	//[00100000 00000001 00000000 00011100]
 	commH := []byte{
 		0: 32,
