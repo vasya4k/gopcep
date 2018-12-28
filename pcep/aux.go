@@ -46,7 +46,7 @@ func padBytes(b []byte, blocksize int) ([]byte, error) {
 	if blocksize <= 0 {
 		return nil, errors.New("invalid blocksize")
 	}
-	if b == nil || len(b) == 0 {
+	if len(b) == 0 {
 		return nil, errors.New("invalid data ")
 	}
 	n := blocksize - (len(b) % blocksize)

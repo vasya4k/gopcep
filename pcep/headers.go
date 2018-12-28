@@ -7,7 +7,17 @@ import (
 )
 
 // https://tools.ietf.org/html/rfc5440#section-7.2
-func newCommonObjHeader(class, objectType uint8, pFlag bool, length uint16) ([]byte, error) {
+// 0                   1                   2                   3
+// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// | Object-Class  |   OT  |Res|P|I|   Object Length (bytes)       |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |                                                               |
+// //                        (Object body)                        //
+// |                                                               |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+func newCommonObjHeader(class, objectType uint8, pFlag bool, data []byte) ([]byte, error) {
 	// objectType is of 8 bits is going to be reused to hold
 	// Res as well as P and I bits
 	objectType = bits.RotateLeft8(objectType, 4)
@@ -16,15 +26,12 @@ func newCommonObjHeader(class, objectType uint8, pFlag bool, length uint16) ([]b
 		objectType |= (1 << 1)
 	}
 	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.BigEndian, length+4)
+	err := binary.Write(buf, binary.BigEndian, uint16(len(data)+4))
 	if err != nil {
 		return nil, err
 	}
-
-	return append([]byte{
-		0: class,
-		1: objectType,
-	}, buf.Bytes()...), nil
+	header := append([]byte{0: class, 1: objectType}, buf.Bytes()...)
+	return append(header, data...), nil
 }
 
 // 6.1.  Common Header
@@ -61,14 +68,15 @@ func newCommonObjHeader(class, objectType uint8, pFlag bool, length uint16) ([]b
 
 // current version is 1 and no flags defined no point
 // to implement coresponding parametrs
+// https://tools.ietf.org/html/rfc5440#section-6.1
 func newCommonHeader(msgType uint8, length uint16) ([]byte, error) {
 	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.BigEndian, length)
+	err := binary.Write(buf, binary.BigEndian, length+4)
 	if err != nil {
 		return nil, err
 	}
 	return append([]byte{
-		// 32 is 00100000 in binary means ver is set to 1 flags to all zeroes
+		// 32 is 00100000 in binary means ver is set to 1, flags to all zeroes
 		0: 32,
 		1: msgType,
 	}, buf.Bytes()...), nil
