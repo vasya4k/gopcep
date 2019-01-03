@@ -203,7 +203,7 @@ func parseLSPObj(data []byte) (*LSPObj, error) {
 		Admin:    a,
 		//shift right to get rid of d,s,r,a flags
 		// then shift left to get rid remaining one bit
-		// then shit right again to get the a clean values
+		// then shit right again to get the a clean value
 		// there is a better solution but i do not have time right now
 		Oper:   ((data[3] >> 4) << 5) >> 5,
 		PLSPID: binary.BigEndian.Uint32(data[:4]) >> 12,
@@ -401,7 +401,7 @@ func (s Session) handlePCRpt(data []byte) {
 		coh := parseCommonObjectHeader(data[offset : offset+4])
 
 		if coh.ObjectClass == 33 && coh.ObjectType == 1 {
-			srp := parseSRP(data)
+			srp := parseSRP(data[offset+4:])
 			offset = coh.ObjectLength
 			logrus.WithFields(logrus.Fields{
 				"type":          coh.ObjectType,
@@ -417,7 +417,7 @@ func (s Session) handlePCRpt(data []byte) {
 			continue
 		}
 		if coh.ObjectClass == 32 && coh.ObjectType == 1 {
-			lsp, err := parseLSPObj(data)
+			lsp, err := parseLSPObj(data[offset+4:])
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"type": "err",
@@ -443,24 +443,39 @@ func (s Session) handlePCRpt(data []byte) {
 			}).Info("found obj in report msg")
 			continue
 		}
+		if coh.ObjectClass == 7 && coh.ObjectType == 1 {
 
-		errObj, err := parseErrObj(data[offset:])
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"type": "err",
-				"func": "parseErrObj",
-			}).Error(err)
-		} else {
-			logrus.WithFields(logrus.Fields{
-				"type":        "err",
-				"peer":        s.Conn.RemoteAddr().String(),
-				"reserved":    errObj.Reserved,
-				"flags":       errObj.Flags,
-				"errtype":     errObj.ErrType,
-				"errvalue":    errObj.ErrValue,
-				"errvaluestr": errObj.ErrValueStr,
-			}).Error("new err msg")
 		}
+
+		// parse
+		// errObj, err := parseErrObj(data[offset:])
+		// if err != nil {
+		// 	logrus.WithFields(logrus.Fields{
+		// 		"type": "err",
+		// 		"func": "parseErrObj",
+		// 	}).Error(err)
+		// } else {
+		// 	logrus.WithFields(logrus.Fields{
+		// 		"type":        "err",
+		// 		"peer":        s.Conn.RemoteAddr().String(),
+		// 		"reserved":    errObj.Reserved,
+		// 		"flags":       errObj.Flags,
+		// 		"errtype":     errObj.ErrType,
+		// 		"errvalue":    errObj.ErrValue,
+		// 		"errvaluestr": errObj.ErrValueStr,
+		// 	}).Error("new err msg")
+		// }
 		offset = offset + coh.ObjectLength
 	}
+}
+
+func parseERO(data []byte) []SREROSub {
+	eros := make([]SREROSub, 0)
+	var offset uint16
+
+	for (len(data) - int(offset)) > 4 {
+		eros = append(eros, SREROSub{})
+	}
+
+	return eros
 }
