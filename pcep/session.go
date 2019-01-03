@@ -181,7 +181,7 @@ func (s *Session) HandleNewMsg(data []byte) {
 		log.Println("recv notification ")
 	case ch.MessageType == 6:
 		fmt.Printf("len %d cap %d Whole ERR MSG: %08b \n", len(data), cap(data), data)
-		s.handlePCEPErrObj(data[4:])
+		s.handleErrObj(data[4:])
 
 	case ch.MessageType == 7:
 		logrus.WithFields(logrus.Fields{

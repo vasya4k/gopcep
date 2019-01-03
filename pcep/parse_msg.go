@@ -239,8 +239,8 @@ func parseClose(data []byte) uint8 {
 	return uint8(data[3])
 }
 
-//PCEPErrObj https://tools.ietf.org/html/rfc5440#section-7.15
-type PCEPErrObj struct {
+//ErrObj https://tools.ietf.org/html/rfc5440#section-7.15
+type ErrObj struct {
 	Reserved    uint8
 	Flags       uint8
 	ErrType     uint8
@@ -248,7 +248,7 @@ type PCEPErrObj struct {
 	ErrValueStr string
 }
 
-func parsePCEPErrObj(data []byte) (*PCEPErrObj, error) {
+func parseErrObj(data []byte) (*ErrObj, error) {
 	coh := parseCommonObjectHeader(data[:4])
 	if coh.ObjectClass != 13 {
 		return nil, errors.New("Object Class is not 13 ")
@@ -341,7 +341,7 @@ func parsePCEPErrObj(data []byte) (*PCEPErrObj, error) {
 		},
 		// pcep_obj_trace: ERROR object: type: 24, value: 1
 	}
-	return &PCEPErrObj{
+	return &ErrObj{
 		Reserved:    data[4],
 		Flags:       data[5],
 		ErrType:     data[6],
@@ -351,7 +351,7 @@ func parsePCEPErrObj(data []byte) (*PCEPErrObj, error) {
 }
 
 //https://tools.ietf.org/html/rfc5440#section-7.15
-func (s Session) handlePCEPErrObj(data []byte) {
+func (s Session) handleErrObj(data []byte) {
 	var offset uint16
 
 	for (len(data) - int(offset)) > 4 {
@@ -371,11 +371,84 @@ func (s Session) handlePCEPErrObj(data []byte) {
 			}).Info("found obj in err msg")
 			continue
 		}
-		errObj, err := parsePCEPErrObj(data[offset:])
+		errObj, err := parseErrObj(data[offset:])
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"type": "err",
-				"func": "parsePCEPErrObj",
+				"func": "parseErrObj",
+			}).Error(err)
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"type":        "err",
+				"peer":        s.Conn.RemoteAddr().String(),
+				"reserved":    errObj.Reserved,
+				"flags":       errObj.Flags,
+				"errtype":     errObj.ErrType,
+				"errvalue":    errObj.ErrValue,
+				"errvaluestr": errObj.ErrValueStr,
+			}).Error("new err msg")
+		}
+		offset = offset + coh.ObjectLength
+	}
+}
+
+// https://tools.ietf.org/html/rfc8231#section-6.1
+func (s Session) handlePCRpt(data []byte) {
+	var offset uint16
+
+	for (len(data) - int(offset)) > 4 {
+
+		coh := parseCommonObjectHeader(data[offset : offset+4])
+
+		if coh.ObjectClass == 33 && coh.ObjectType == 1 {
+			srp := parseSRP(data)
+			offset = coh.ObjectLength
+			logrus.WithFields(logrus.Fields{
+				"type":          coh.ObjectType,
+				"peer":          s.Conn.RemoteAddr().String(),
+				"class":         coh.ObjectClass,
+				"process_rules": coh.ProcessingRule,
+				"length":        coh.ObjectLength,
+				"ignore":        coh.Ignore,
+				"reserved":      coh.Reservedfield,
+				"flags":         srp.Flags,
+				"id":            srp.SRPIDNumber,
+			}).Info("found obj in report msg")
+			continue
+		}
+		if coh.ObjectClass == 32 && coh.ObjectType == 1 {
+			lsp, err := parseLSPObj(data)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseErrObj",
+				}).Error(err)
+				continue
+			}
+			offset = coh.ObjectLength
+			logrus.WithFields(logrus.Fields{
+				"type":          coh.ObjectType,
+				"peer":          s.Conn.RemoteAddr().String(),
+				"class":         coh.ObjectClass,
+				"process_rules": coh.ProcessingRule,
+				"length":        coh.ObjectLength,
+				"ignore":        coh.Ignore,
+				"reserved":      coh.Reservedfield,
+				"admin":         lsp.Admin,
+				"delegate":      lsp.Delegate,
+				"operational":   lsp.Oper,
+				"plsp_id":       lsp.PLSPID,
+				"remove":        lsp.Remove,
+				"sync":          lsp.Sync,
+			}).Info("found obj in report msg")
+			continue
+		}
+
+		errObj, err := parseErrObj(data[offset:])
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type": "err",
+				"func": "parseErrObj",
 			}).Error(err)
 		} else {
 			logrus.WithFields(logrus.Fields{
