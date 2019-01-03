@@ -366,7 +366,7 @@ func newSREROSubObject(ero SREROSub) ([]byte, error) {
 	}
 	if !ero.NoSID {
 		buf := new(bytes.Buffer)
-		err = binary.Write(buf, binary.BigEndian, ero.SID)
+		err = binary.Write(buf, binary.BigEndian, ero.SID<<12)
 		if err != nil {
 			return nil, err
 		}
