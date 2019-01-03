@@ -2,6 +2,7 @@ package pcep
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"strings"
@@ -191,14 +192,18 @@ func (s *Session) HandleNewMsg(data []byte) {
 		}).Info("new msg")
 		err := s.Conn.Close()
 		if err != nil {
-			log.Panicln(err)
+			log.Println(err)
 		}
 	case ch.MessageType == 10:
 		logrus.WithFields(logrus.Fields{
 			"type": "path computation lsp state report",
 			"peer": s.Conn.RemoteAddr().String(),
 		}).Info("new msg")
-
+		err := ioutil.WriteFile("/home/egorz/go/src/gopcep/dat1", data, 0644)
+		if err != nil {
+			log.Println(err)
+		}
+		s.HandlePCRpt(data)
 		// srp := parseSRP(data[8:16])
 		// fmt.Printf("%s %+v\n", "SRP", srp)
 		// pst := parsePathSetupType(data[16:24])

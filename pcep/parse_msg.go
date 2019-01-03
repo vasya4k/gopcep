@@ -3,6 +3,7 @@ package pcep
 import (
 	"encoding/binary"
 	"errors"
+	"net"
 
 	"github.com/sirupsen/logrus"
 )
@@ -393,7 +394,7 @@ func (s Session) handleErrObj(data []byte) {
 }
 
 // https://tools.ietf.org/html/rfc8231#section-6.1
-func (s Session) handlePCRpt(data []byte) {
+func (s Session) HandlePCRpt(data []byte) {
 	var offset uint16
 
 	for (len(data) - int(offset)) > 4 {
@@ -401,11 +402,11 @@ func (s Session) handlePCRpt(data []byte) {
 		coh := parseCommonObjectHeader(data[offset : offset+4])
 
 		if coh.ObjectClass == 33 && coh.ObjectType == 1 {
+
 			srp := parseSRP(data[offset+4:])
-			offset = coh.ObjectLength
 			logrus.WithFields(logrus.Fields{
-				"type":          coh.ObjectType,
-				"peer":          s.Conn.RemoteAddr().String(),
+				"type": coh.ObjectType,
+				// "peer":          s.Conn.RemoteAddr().String(),
 				"class":         coh.ObjectClass,
 				"process_rules": coh.ProcessingRule,
 				"length":        coh.ObjectLength,
@@ -414,21 +415,23 @@ func (s Session) handlePCRpt(data []byte) {
 				"flags":         srp.Flags,
 				"id":            srp.SRPIDNumber,
 			}).Info("found obj in report msg")
+			offset = offset + coh.ObjectLength
 			continue
 		}
 		if coh.ObjectClass == 32 && coh.ObjectType == 1 {
+
 			lsp, err := parseLSPObj(data[offset+4:])
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"type": "err",
 					"func": "parseErrObj",
 				}).Error(err)
+				offset = offset + coh.ObjectLength
 				continue
 			}
-			offset = coh.ObjectLength
 			logrus.WithFields(logrus.Fields{
-				"type":          coh.ObjectType,
-				"peer":          s.Conn.RemoteAddr().String(),
+				"type": coh.ObjectType,
+				// "peer":          s.Conn.RemoteAddr().String(),
 				"class":         coh.ObjectClass,
 				"process_rules": coh.ProcessingRule,
 				"length":        coh.ObjectLength,
@@ -441,41 +444,97 @@ func (s Session) handlePCRpt(data []byte) {
 				"remove":        lsp.Remove,
 				"sync":          lsp.Sync,
 			}).Info("found obj in report msg")
+			offset = offset + coh.ObjectLength
 			continue
 		}
 		if coh.ObjectClass == 7 && coh.ObjectType == 1 {
-
+			eros, err := parseERO(data[offset+4 : coh.ObjectLength])
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseErrObj",
+				}).Error(err)
+				offset = offset + coh.ObjectLength
+				continue
+			}
+			printAsJSON(eros)
+			offset = offset + coh.ObjectLength
+			continue
 		}
-
-		// parse
-		// errObj, err := parseErrObj(data[offset:])
-		// if err != nil {
-		// 	logrus.WithFields(logrus.Fields{
-		// 		"type": "err",
-		// 		"func": "parseErrObj",
-		// 	}).Error(err)
-		// } else {
-		// 	logrus.WithFields(logrus.Fields{
-		// 		"type":        "err",
-		// 		"peer":        s.Conn.RemoteAddr().String(),
-		// 		"reserved":    errObj.Reserved,
-		// 		"flags":       errObj.Flags,
-		// 		"errtype":     errObj.ErrType,
-		// 		"errvalue":    errObj.ErrValue,
-		// 		"errvaluestr": errObj.ErrValueStr,
-		// 	}).Error("new err msg")
-		// }
 		offset = offset + coh.ObjectLength
 	}
 }
 
-func parseERO(data []byte) []SREROSub {
-	eros := make([]SREROSub, 0)
-	var offset uint16
-
+func parseERO(data []byte) ([]*SREROSub, error) {
+	eros := make([]*SREROSub, 0)
+	var offset uint8
 	for (len(data) - int(offset)) > 4 {
-		eros = append(eros, SREROSub{})
+		var (
+			e   SREROSub
+			err error
+		)
+		e.LooseHop, err = uintToBool(uint(data[0]) >> 7)
+		if err != nil {
+			return nil, err
+		}
+		// checking obj type
+		data[0] |= (1 << 7)
+		if data[0] != 36 {
+			return nil, errors.New("wrong ero type")
+		}
+		e.NT = data[2] >> 4
+		e.NoNAI, err = uintToBool(readBits(data[3], 3))
+		if err != nil {
+			return nil, err
+		}
+		e.NoSID, err = uintToBool(readBits(data[3], 2))
+		if err != nil {
+			return nil, err
+		}
+		e.CBit, err = uintToBool(readBits(data[3], 1))
+		if err != nil {
+			return nil, err
+		}
+		e.MBit, err = uintToBool(readBits(data[3], 0))
+		if err != nil {
+			return nil, err
+		}
+		if e.NoSID {
+			err = parseNAI(data[4:], &e)
+			if err != nil {
+				return nil, err
+			}
+		}
+		sid := binary.BigEndian.Uint32(data[4:8])
+		if e.MBit {
+			sid = sid >> 12
+		}
+		err = parseNAI(data[8:], &e)
+		if err != nil {
+			return nil, err
+		}
+		eros = append(eros, &e)
+		offset = offset + data[1]
 	}
+	return eros, nil
+}
 
-	return eros
+func parseNAI(data []byte, ero *SREROSub) error {
+	switch ero.NT {
+	case 1:
+		ip := make(net.IP, 4)
+		binary.BigEndian.PutUint32(ip, binary.BigEndian.Uint32(data[:4]))
+		ero.IPv4NodeID = ip.String()
+	case 3:
+		localIP := make(net.IP, 4)
+		binary.BigEndian.PutUint32(localIP, binary.BigEndian.Uint32(data[:4]))
+		ero.IPv4Adjacency = make([]string, 2)
+		ero.IPv4Adjacency[0] = localIP.String()
+		remoteIP := make(net.IP, 4)
+		binary.BigEndian.PutUint32(remoteIP, binary.BigEndian.Uint32(data[4:8]))
+		ero.IPv4Adjacency[1] = remoteIP.String()
+	default:
+		return errors.New("NAI type not implemented yet")
+	}
+	return nil
 }
