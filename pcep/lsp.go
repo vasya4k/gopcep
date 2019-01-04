@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"math"
 	"math/big"
 
 	"github.com/sirupsen/logrus"
@@ -81,7 +82,8 @@ type LSP struct {
 	Src          string
 	Dst          string
 	EROList      []EROSub
-	SREROList    []SREROSub
+	SREROList    []*SREROSub
+	SRRROList    []*SRRROSub
 	SetupPrio    uint8
 	HoldPrio     uint8
 	LocalProtect bool
@@ -90,53 +92,48 @@ type LSP struct {
 	LSPID        uint16
 	IPv4ID       *LSPIPv4Identifiers
 	IPv6ID       *LSPIPv6Identifiers
+	SRPID        uint32
+	ExcludeAny   uint32
+	IncludeAny   uint32
+	IncludeAll   uint32
 }
 
 //https://tools.ietf.org/html/rfc8231#section-7.3
-func parseLSPObj(data []byte) (*LSP, error) {
-	d, err := uintToBool(readBits(data[3], 0))
+func (l *LSP) parseLSPObj(data []byte) error {
+	var err error
+	l.Delegate, err = uintToBool(readBits(data[3], 0))
 	if err != nil {
-
-		return nil, err
+		return err
 	}
-	s, err := uintToBool(readBits(data[3], 1))
+	l.Sync, err = uintToBool(readBits(data[3], 1))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	r, err := uintToBool(readBits(data[3], 2))
+	l.Remove, err = uintToBool(readBits(data[3], 2))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	a, err := uintToBool(readBits(data[3], 3))
+	l.Admin, err = uintToBool(readBits(data[3], 3))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	lsp := &LSP{
-		Delegate: d,
-		Sync:     s,
-		Remove:   r,
-		Admin:    a,
-		//shift right to get rid of d,s,r,a flags
-		// then shift left to get rid remaining one bit
-		// then shit right again to get the a clean value
-		// there is a better solution but i do not have time right now
-		Oper:   ((data[3] >> 4) << 5) >> 5,
-		PLSPID: binary.BigEndian.Uint32(data[:4]) >> 12,
-	}
-	// fmt.Printf("After Int %08b \n", data)
-	lsp.parseLSPSubObj(data[4:])
-	printAsJSON(lsp)
-	return lsp, nil
+	//shift right to get rid of d,s,r,a flags
+	// then shift left to get rid remaining one bit
+	// then shit right again to get the a clean value
+	// there is a better solution but i do not have time right now
+	l.Oper = ((data[3] >> 4) << 5) >> 5
+	l.PLSPID = binary.BigEndian.Uint32(data[:4]) >> 12
+	l.parseLSPSubObj(data[4:])
+	return nil
 }
 
 func (l *LSP) parseLSPSubObj(data []byte) error {
-	fmt.Printf("After Int %08b \n", data)
 	var (
 		offset  uint16
 		err     error
 		counter int
 	)
-	// +4 need because obj header is not included in length
+	// +4 is needed because obj header is not included in length
 	for (len(data) - int(offset)) > 4 {
 		counter++
 		switch binary.BigEndian.Uint16(data[offset : offset+2]) {
@@ -233,7 +230,48 @@ func parseLSPIPv6Identifiers(data []byte) (*LSPIPv6Identifiers, error) {
 	}, nil
 }
 
-func parseLSPAObj(data []byte) error {
-
+// https://tools.ietf.org/html/rfc5440#section-7.11
+func (l *LSP) parseLSPAObj(data []byte) error {
+	if len(data) < 16 {
+		return fmt.Errorf("data len is %d but should be 16", len(data))
+	}
+	l.ExcludeAny = binary.BigEndian.Uint32(data[:4])
+	l.IncludeAny = binary.BigEndian.Uint32(data[4:8])
+	l.IncludeAll = binary.BigEndian.Uint32(data[8:12])
+	l.SetupPrio = data[12]
+	l.HoldPrio = data[13]
+	var err error
+	l.LocalProtect, err = uintToBool(readBits(data[14], 0))
+	if err != nil {
+		return err
+	}
 	return nil
+}
+
+// LSPMetric s
+type LSPMetric struct {
+	CFlaf  bool
+	BFlag  bool
+	Metric float32
+}
+
+func parseMetric(data []byte) (*LSPMetric, error) {
+	if len(data) < 8 {
+		return nil, fmt.Errorf("data len is %d but should be 8", len(data))
+	}
+	var (
+		m   LSPMetric
+		err error
+	)
+	m.CFlaf, err = uintToBool(readBits(data[2], 1))
+	if err != nil {
+		return nil, err
+	}
+	m.BFlag, err = uintToBool(readBits(data[2], 0))
+	if err != nil {
+		return nil, err
+	}
+	u := binary.BigEndian.Uint32(data[4:8])
+	m.Metric = math.Float32frombits(u)
+	return &m, nil
 }

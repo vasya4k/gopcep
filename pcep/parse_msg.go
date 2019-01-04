@@ -2,6 +2,7 @@ package pcep
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 )
@@ -87,86 +88,121 @@ func (s Session) handleErrObj(data []byte) {
 
 //HandlePCRpt https://tools.ietf.org/html/rfc8231#section-6.1
 func (s Session) HandlePCRpt(data []byte) {
-	var offset uint16
+	// fmt.Printf("Int %08b \n", data)
+	var (
+		offset uint16
+		lsp    LSP
+	)
 	for (len(data) - int(offset)) > 4 {
 		coh := parseCommonObjectHeader(data[offset : offset+4])
+		printCommonObjHdr(coh, "found obj in report msg")
 		switch coh.ObjectClass {
 		case 33:
 			if coh.ObjectType == 1 {
 				srp := parseSRP(data[offset+4:])
-				logrus.WithFields(logrus.Fields{
-					"type": coh.ObjectType,
-					// "peer":          s.Conn.RemoteAddr().String(),
-					"class":         coh.ObjectClass,
-					"process_rules": coh.ProcessingRule,
-					"length":        coh.ObjectLength,
-					"ignore":        coh.Ignore,
-					"reserved":      coh.Reservedfield,
-					"flags":         srp.Flags,
-					"srp_id":        srp.SRPIDNumber,
-				}).Info("found obj in report msg")
+				lsp.SRPID = srp.SRPIDNumber
 				offset = offset + coh.ObjectLength
 				continue
 			}
 		case 32:
 			if coh.ObjectType == 1 {
-				lsp, err := parseLSPObj(data[offset+4 : offset+4+coh.ObjectLength])
+				err := lsp.parseLSPObj(data[offset+4 : offset+4+coh.ObjectLength])
 				if err != nil {
 					logrus.WithFields(logrus.Fields{
 						"type": "err",
-						"func": "parseErrObj",
+						"func": "parseLSPObj",
 					}).Error(err)
 					offset = offset + coh.ObjectLength
 					continue
 				}
-				logrus.WithFields(logrus.Fields{
-					"type": coh.ObjectType,
-					// "peer":          s.Conn.RemoteAddr().String(),
-					"class":         coh.ObjectClass,
-					"process_rules": coh.ProcessingRule,
-					"length":        coh.ObjectLength,
-					"ignore":        coh.Ignore,
-					"reserved":      coh.Reservedfield,
-					"admin":         lsp.Admin,
-					"delegate":      lsp.Delegate,
-					"operational":   lsp.Oper,
-					"plsp_id":       lsp.PLSPID,
-					"remove":        lsp.Remove,
-					"sync":          lsp.Sync,
-				}).Info("found obj in report msg")
 				offset = offset + coh.ObjectLength
 				continue
 			}
 		case 7:
 			if coh.ObjectType == 1 {
-				eros, err := parseERO(data[offset+4 : offset+coh.ObjectLength])
+				var err error
+				lsp.SREROList, err = parseERO(data[offset+4 : offset+coh.ObjectLength])
 				if err != nil {
 					logrus.WithFields(logrus.Fields{
 						"type": "err",
-						"func": "parseErrObj",
+						"func": "parseERO",
 					}).Error(err)
 					offset = offset + coh.ObjectLength
 					continue
 				}
-				printAsJSON(eros)
 				offset = offset + coh.ObjectLength
 				continue
 			}
-		// case 9:
-		// 	if coh.ObjectType == 1 {
+		case 9:
+			if coh.ObjectType == 1 {
+				err := lsp.parseLSPAObj(data[offset+4 : offset+coh.ObjectLength])
+				if err != nil {
+					logrus.WithFields(logrus.Fields{
+						"type": "err",
+						"func": "parseERO",
+					}).Error(err)
+					offset = offset + coh.ObjectLength
+					continue
+				}
+				offset = offset + coh.ObjectLength
+				continue
+			}
+		case 5:
+			if coh.ObjectType == 1 {
+				lsp.BW = binary.BigEndian.Uint32(data[offset+4 : offset+8])
+				offset = offset + coh.ObjectLength
+				continue
+			}
+		case 6:
+			if coh.ObjectType == 1 {
+				m, err := parseMetric(data[offset+4 : offset+coh.ObjectLength])
+				if err != nil {
+					logrus.WithFields(logrus.Fields{
+						"type": "err",
+						"func": "parseERO",
+					}).Error(err)
+					offset = offset + coh.ObjectLength
+					continue
+				}
+				printAsJSON(m)
+				offset = offset + coh.ObjectLength
+				continue
+			}
+		case 8:
+			if coh.ObjectType == 1 {
+				var err error
+				lsp.SRRROList, err = parseRRO(data[offset+4 : offset+coh.ObjectLength])
+				if err != nil {
+					logrus.WithFields(logrus.Fields{
+						"type": "err",
+						"func": "parseERO",
+					}).Error(err)
+					offset = offset + coh.ObjectLength
+					continue
+				}
+				offset = offset + coh.ObjectLength
+				continue
+			}
+			fmt.Printf("After Int %08b len: %d\n", data[offset+4:offset+coh.ObjectLength], len(data[offset+4:offset+coh.ObjectLength]))
+			offset = offset + coh.ObjectLength
+			continue
 
-		// 	}
 		default:
-			logrus.WithFields(logrus.Fields{
-				"type": coh.ObjectType,
-				// "peer":          s.Conn.RemoteAddr().String(),
-				"class":         coh.ObjectClass,
-				"process_rules": coh.ProcessingRule,
-				"length":        coh.ObjectLength,
-				"ignore":        coh.Ignore,
-				"reserved":      coh.Reservedfield,
-			}).Info("found obj in report msg")
+			printCommonObjHdr(coh, "found unknown obj in report msg")
 			offset = offset + coh.ObjectLength
 		}
 	}
+	printAsJSON(lsp)
+}
+
+func printCommonObjHdr(coh *CommonObjectHeader, msg string) {
+	logrus.WithFields(logrus.Fields{
+		"type": coh.ObjectType,
+		// "peer":          s.Conn.RemoteAddr().String(),
+		"class":         coh.ObjectClass,
+		"process_rules": coh.ProcessingRule,
+		"length":        coh.ObjectLength,
+		"ignore":        coh.Ignore,
+		"reserved":      coh.Reservedfield,
+	}).Info(msg)
 }
