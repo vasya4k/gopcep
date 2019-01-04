@@ -1,27 +1,13 @@
 package pcep
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"log"
-)
+	"math/big"
 
-// LSP represents a Segment routing LSP
-type LSP struct {
-	Delegate     bool
-	Sync         bool
-	Remove       bool
-	Admin        bool
-	Name         string
-	Src          string
-	Dst          string
-	EROList      []EROSub
-	SetupPrio    uint8
-	HoldPrio     uint8
-	LocalProtect bool
-	BW           uint32
-}
+	"github.com/sirupsen/logrus"
+)
 
 // InitLSP aaaa
 func (s *Session) InitLSP(l *LSP) error {
@@ -84,59 +70,170 @@ func (s *Session) InitLSP(l *LSP) error {
 	return nil
 }
 
-// https://tools.ietf.org/html/rfc3209#section-4.3.3
-// https://tools.ietf.org/html/rfc5440#section-7.9
-func newERObj(subEROs []EROSub) ([]byte, error) {
-	ero := make([]byte, 0)
-	for _, subERO := range subEROs {
-		subEROBytes, err := newEROSubObject(subERO)
-		if err != nil {
-			return nil, err
+//LSP represents a Segment routing LSP  https://tools.ietf.org/html/rfc8231#section-7.3
+type LSP struct {
+	Delegate     bool
+	Sync         bool
+	Remove       bool
+	Admin        bool
+	Oper         uint8
+	Name         string
+	Src          string
+	Dst          string
+	EROList      []EROSub
+	SREROList    []SREROSub
+	SetupPrio    uint8
+	HoldPrio     uint8
+	LocalProtect bool
+	BW           uint32
+	PLSPID       uint32
+	LSPID        uint16
+	IPv4ID       *LSPIPv4Identifiers
+	IPv6ID       *LSPIPv6Identifiers
+}
+
+//https://tools.ietf.org/html/rfc8231#section-7.3
+func parseLSPObj(data []byte) (*LSP, error) {
+	d, err := uintToBool(readBits(data[3], 0))
+	if err != nil {
+
+		return nil, err
+	}
+	s, err := uintToBool(readBits(data[3], 1))
+	if err != nil {
+		return nil, err
+	}
+	r, err := uintToBool(readBits(data[3], 2))
+	if err != nil {
+		return nil, err
+	}
+	a, err := uintToBool(readBits(data[3], 3))
+	if err != nil {
+		return nil, err
+	}
+	lsp := &LSP{
+		Delegate: d,
+		Sync:     s,
+		Remove:   r,
+		Admin:    a,
+		//shift right to get rid of d,s,r,a flags
+		// then shift left to get rid remaining one bit
+		// then shit right again to get the a clean value
+		// there is a better solution but i do not have time right now
+		Oper:   ((data[3] >> 4) << 5) >> 5,
+		PLSPID: binary.BigEndian.Uint32(data[:4]) >> 12,
+	}
+	// fmt.Printf("After Int %08b \n", data)
+	lsp.parseLSPSubObj(data[4:])
+	printAsJSON(lsp)
+	return lsp, nil
+}
+
+func (l *LSP) parseLSPSubObj(data []byte) error {
+	fmt.Printf("After Int %08b \n", data)
+	var (
+		offset  uint16
+		err     error
+		counter int
+	)
+	// +4 need because obj header is not included in length
+	for (len(data) - int(offset)) > 4 {
+		counter++
+		switch binary.BigEndian.Uint16(data[offset : offset+2]) {
+		case 18:
+			l.IPv4ID, err = parseLSPIPv4Identifiers(data[offset:])
+			if err != nil {
+				return err
+			}
+			offset = offset + binary.BigEndian.Uint16(data[offset+2:offset+4]) + 4
+			continue
+		case 19:
+			l.IPv6ID, err = parseLSPIPv6Identifiers(data[offset:])
+			if err != nil {
+				return err
+			}
+			offset = offset + binary.BigEndian.Uint16(data[offset+2:offset+4]) + 4
+			continue
+		// https://tools.ietf.org/html/rfc8231#section-7.3.2
+		case 17:
+			length := binary.BigEndian.Uint16(data[offset+2 : offset+4])
+			l.Name = string(data[offset+4 : offset+4+length])
+			offset = offset + (length + (4 - (length % 4))) + 4
+
+			logrus.WithFields(logrus.Fields{
+				"type":     binary.BigEndian.Uint16(data[offset : offset+2]),
+				"length":   length,
+				"lsp_name": l.Name,
+				"offset":   offset,
+				"counter":  counter,
+			}).Info("unknown object type")
+			continue
+		default:
+			logrus.WithFields(logrus.Fields{
+				"type":   binary.BigEndian.Uint16(data[offset : offset+2]),
+				"length": binary.BigEndian.Uint16(data[offset+2 : offset+4]),
+			}).Info("unknown object type")
+			offset = offset + binary.BigEndian.Uint16(data[offset+2:offset+4]) + 4
 		}
-		ero = append(ero, subEROBytes...)
 	}
-	headerERO, err := newCommonObjHeader(7, 1, true, ero)
-	if err != nil {
-		return nil, err
-	}
-	return headerERO, nil
+	return nil
 }
 
-//SREROSub str
-type EROSub struct {
-	LooseHop bool
-	IPv4Addr string
-	Mask     uint8
-	Type     uint8
+// LSPIPv4Identifiers https://tools.ietf.org/html/rfc8231#section-7.3.1
+type LSPIPv4Identifiers struct {
+	Type             uint16
+	Length           uint16
+	LSPID            uint16
+	TunnelID         uint16
+	SenderAddr       uint32
+	ExtendedTunnelID uint32
+	EndpointAddr     uint32
 }
 
-// https://tools.ietf.org/html/rfc3209#section-4.3.3
-func newEROSubObject(ero EROSub) ([]byte, error) {
-	var objType uint8 = ero.Type
-	if ero.LooseHop {
-		objType |= (1 << 7)
+// https://tools.ietf.org/html/rfc8231#section-7.3.1
+func parseLSPIPv4Identifiers(data []byte) (*LSPIPv4Identifiers, error) {
+	if len(data) < 20 {
+		return nil, fmt.Errorf("data len is %d but should be 20", len(data))
 	}
-	ipv4 := []byte{
-		0: objType,
-		1: 8,
+	return &LSPIPv4Identifiers{
+		Type:             binary.BigEndian.Uint16(data[:2]),
+		Length:           binary.BigEndian.Uint16(data[2:4]),
+		LSPID:            binary.BigEndian.Uint16(data[8:10]),
+		TunnelID:         binary.BigEndian.Uint16(data[10:12]),
+		SenderAddr:       binary.BigEndian.Uint32(data[4:8]),
+		ExtendedTunnelID: binary.BigEndian.Uint32(data[12:16]),
+		EndpointAddr:     binary.BigEndian.Uint32(data[16:20]),
+	}, nil
+}
+
+// LSPIPv6Identifiers https://tools.ietf.org/html/rfc8231#section-7.3.1
+type LSPIPv6Identifiers struct {
+	Type             uint16
+	Length           uint16
+	LSPID            uint16
+	TunnelID         uint16
+	SenderAddr       *big.Int
+	ExtendedTunnelID *big.Int
+	EndpointAddr     *big.Int
+}
+
+// https://tools.ietf.org/html/rfc8231#section-7.3.1
+func parseLSPIPv6Identifiers(data []byte) (*LSPIPv6Identifiers, error) {
+	if len(data) < 52 {
+		return nil, fmt.Errorf("data len is %d but should be 52", len(data))
 	}
-	ip, err := ipToUnit32(ero.IPv4Addr)
-	if err != nil {
-		return nil, err
-	}
-	buf := new(bytes.Buffer)
-	err = binary.Write(buf, binary.BigEndian, ip)
-	if err != nil {
-		return nil, err
-	}
-	err = binary.Write(buf, binary.BigEndian, ero.Mask)
-	if err != nil {
-		return nil, err
-	}
-	var reserved uint8
-	err = binary.Write(buf, binary.BigEndian, reserved)
-	if err != nil {
-		return nil, err
-	}
-	return append(ipv4, buf.Bytes()...), nil
+	return &LSPIPv6Identifiers{
+		Type:             binary.BigEndian.Uint16(data[:2]),
+		Length:           binary.BigEndian.Uint16(data[2:4]),
+		LSPID:            binary.BigEndian.Uint16(data[20:22]),
+		TunnelID:         binary.BigEndian.Uint16(data[22:24]),
+		SenderAddr:       new(big.Int).SetBytes(data[4:20]),
+		ExtendedTunnelID: new(big.Int).SetBytes(data[24:40]),
+		EndpointAddr:     new(big.Int).SetBytes(data[40:56]),
+	}, nil
+}
+
+func parseLSPAObj(data []byte) error {
+
+	return nil
 }

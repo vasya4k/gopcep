@@ -69,3 +69,26 @@ func ipToUnit32(ipStr string) (uint32, error) {
 	binary.Read(bytes.NewBuffer(ipv4), binary.BigEndian, &res)
 	return res, nil
 }
+
+// package main
+
+//  import (
+//          "fmt"
+//          "math/big"
+//          "net"
+//  )
+
+//  func IP6toInt(IPv6Address net.IP) *big.Int {
+//          IPv6Int := big.NewInt(0)
+
+//          // from http://golang.org/pkg/net/#pkg-constants
+//          // IPv6len = 16
+//          IPv6Int.SetBytes(IPv6Address.To16())
+//          return IPv6Int
+//  }
+
+//  func main() {
+
+//          ipv6Decimal := IP6toInt(net.ParseIP("FE80::0202:B3FF:FE1E:8329"))
+//          fmt.Println(ipv6Decimal)
+//  }
