@@ -20,6 +20,7 @@ type SRRROSub struct {
 	UnnuV4Adj     UnnuAdjIPv4NodeIDs
 }
 
+// https://tools.ietf.org/html/draft-ietf-pce-segment-routing-14#section-5.4
 func parseRRO(data []byte) ([]*SRRROSub, error) {
 	// fmt.Printf("After Int %08b \n", data)
 	eros := make([]*SRRROSub, 0)

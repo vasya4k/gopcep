@@ -13,31 +13,62 @@ import (
 
 //Session holds everything for a PCEP session
 type Session struct {
-	State     int
-	Conn      net.Conn
-	ID        uint8
-	RemoteOK  bool
-	Keepalive int
-	LSPs      map[uint32]string
-	IDCounter uint32
-	SRPID     uint32
-	StopKA    chan struct{}
+	ID          uint8
+	MsgCount    int64
+	State       int
+	Conn        net.Conn
+	RemoteOK    bool
+	LocalOK     bool
+	Keepalive   uint8
+	DeadTimer   uint8
+	LSPs        map[uint32]string
+	IDCounter   uint32
+	SRPID       uint32
+	StopKA      chan struct{}
+	SRCap       *SRPCECap
+	StatefulCap *StatefulPCECapability
+	Open        *OpenObject
 }
 
 //RcvSessionOpen recive msg handler
-func (s *Session) RcvSessionOpen(coh *CommonObjectHeader, data []byte) {
-	if coh.ObjectClass != 1 && coh.ObjectType != 1 {
+func (s *Session) RcvSessionOpen(data []byte) {
+	h, err := parseCommonObjectHeader(data)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type": "err",
+			"func": "parseCommonObjectHeader",
+		}).Error(err)
+		return
+	}
+	if h.ObjectClass != 1 && h.ObjectType != 1 {
 		log.Printf("Remote IP: %s, object class and object type do not mathc OPEN msg RFC defenitions", s.Conn.RemoteAddr())
 		return
 	}
-	fmt.Printf("len %d cap %d Whole OPEN MSG: %08b \n", len(data), cap(data), data)
-	oo := parseOpenObject(data[8:12])
-	s.ID = oo.SID
-	s.Keepalive = int(oo.Keepalive)
-	s.RemoteOK = true
-	parseStatefulPCECap(data[12:20])
-	parseSRCap(data[20:28])
-
+	s.Open, err = parseOpenObject(data[4:8])
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type": "err",
+			"func": "parseOpenObject",
+		}).Error(err)
+		return
+	}
+	s.ID = s.Open.SID
+	s.StatefulCap, err = parseStatefulPCECap(data[8:16])
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type": "err",
+			"func": "parseStatefulPCECap",
+		}).Error(err)
+		return
+	}
+	s.SRCap, err = parseSRCap(data[16:24])
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type": "err",
+			"func": "parseSRCap",
+		}).Error(err)
+		return
+	}
 	s.SendSessionOpen()
 }
 
@@ -77,11 +108,16 @@ func (s *Session) SendKeepAlive() {
 // HandleNewMsg handles incoming data
 func (s *Session) HandleNewMsg(data []byte) {
 	// fmt.Printf("len %d cap %d Whole MSG: %08b \n", len(data), cap(data), data)
-
-	ch := parseCommonHeader(data[:4])
-	var coh *CommonObjectHeader
-	if len(data) > 4 {
-		coh = parseCommonObjectHeader(data[4:8])
+	if len(data) < 4 {
+		return
+	}
+	ch, err := parseCommonHeader(data[:4])
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type": "err",
+			"func": "parseCommonHeader",
+		}).Error(err)
+		return
 	}
 
 	switch {
@@ -90,7 +126,7 @@ func (s *Session) HandleNewMsg(data []byte) {
 			"type": "open",
 			"peer": s.Conn.RemoteAddr().String(),
 		}).Info("new msg")
-		go s.RcvSessionOpen(coh, data)
+		go s.RcvSessionOpen(data[4:])
 	case ch.MessageType == 2:
 		logrus.WithFields(logrus.Fields{
 			"type": "keepalive",
@@ -98,31 +134,6 @@ func (s *Session) HandleNewMsg(data []byte) {
 		}).Info("new msg")
 		if s.State == 2 {
 			if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
-				// lsp := &LSP{
-				// 	Delegate: true,
-				// 	Sync:     false,
-				// 	Remove:   false,
-				// 	Admin:    true,
-				// 	Name:     "LSP-1",
-				// 	Src:      "10.10.10.10",
-				// 	Dst:      "13.13.13.13",
-				// 	EROList: []EROSub{
-				// 		0: EROSub{
-				// 			LooseHop: false,
-				// 			IPv4Addr: "14.14.14.14",
-				// 			Mask:     32,
-				// 			Type:     1,
-				// 		},
-				// 	},
-				// 	SetupPrio:    1,
-				// 	HoldPrio:     1,
-				// 	LocalProtect: false,
-				// 	BW:           0,
-				// }
-				// err := s.InitLSP(lsp)
-				// if err != nil {
-				// 	fmt.Println(err)
-				// }
 				lsp := &SRLSP{
 					Delegate: true,
 					Sync:     false,
@@ -166,13 +177,20 @@ func (s *Session) HandleNewMsg(data []byte) {
 					LocalProtect: false,
 					BW:           100,
 				}
+				logrus.WithFields(logrus.Fields{
+					"type": "before",
+					"func": "InitSRLSP",
+				}).Info("new msg")
 				err := s.InitSRLSP(lsp)
 				if err != nil {
 					fmt.Println(err)
 				}
+				logrus.WithFields(logrus.Fields{
+					"type": "after",
+					"func": "InitSRLSP",
+				}).Info("new msg")
 				s.State = 3
 			}
-
 		}
 	case ch.MessageType == 3:
 		log.Println("recv path computation request ")
@@ -198,22 +216,13 @@ func (s *Session) HandleNewMsg(data []byte) {
 		logrus.WithFields(logrus.Fields{
 			"type": "path computation lsp state report",
 			"peer": s.Conn.RemoteAddr().String(),
+			"len":  len(data[4:]),
 		}).Info("new msg")
 		err := ioutil.WriteFile("/home/egorz/go/src/gopcep/dat1", data, 0644)
 		if err != nil {
 			log.Println(err)
 		}
-		s.HandlePCRpt(data)
-		// srp := parseSRP(data[8:16])
-		// fmt.Printf("%s %+v\n", "SRP", srp)
-		// pst := parsePathSetupType(data[16:24])
-		// fmt.Printf("%s %+v\n", "SRP", pst)
-		// another := parseCommonObjectHeader(data[24:28])
-		// fmt.Printf("next common header %s %+v\n", "another", another)
-		// lsp, err := parseLSPObj(data[28:32])
-		// if err != nil {
-		// 	fmt.Println(err)
-		// }
+		s.HandlePCRpt(data[4:])
 		// fmt.Printf("%s %+v\n", "LSP", lsp)
 		// fmt.Printf("%s %+v\n", "LSPIdentifiers", parseLSPIdentifiers(data[32:52]))
 	case ch.MessageType == 11:
@@ -278,7 +287,10 @@ func (s *Session) SendSessionOpen() {
 	if err != nil {
 		log.Println(err)
 	}
-	log.Printf("Sent open : %d byte", i)
+	logrus.WithFields(logrus.Fields{
+		"type":  "info",
+		"event": "open",
+	}).Info(fmt.Sprintf("Sent Open: %d byte", i))
 	s.State = 2
 	s.SendKeepAlive()
 }

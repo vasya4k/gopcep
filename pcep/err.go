@@ -1,6 +1,10 @@
 package pcep
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/sirupsen/logrus"
+)
 
 //ErrObj https://tools.ietf.org/html/rfc5440#section-7.15
 type ErrObj struct {
@@ -12,7 +16,14 @@ type ErrObj struct {
 }
 
 func parseErrObj(data []byte) (*ErrObj, error) {
-	coh := parseCommonObjectHeader(data[:4])
+	coh, err := parseCommonObjectHeader(data[:4])
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type": "err",
+			"func": "parseERO",
+		}).Error(err)
+		return nil, err
+	}
 	if coh.ObjectClass != 13 {
 		return nil, errors.New("Object Class is not 13 ")
 	}

@@ -2,6 +2,7 @@ package pcep
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 )
@@ -16,7 +17,10 @@ type OpenObject struct {
 }
 
 // https://tools.ietf.org/html/rfc5440#section-7.3
-func parseOpenObject(data []byte) *OpenObject {
+func parseOpenObject(data []byte) (*OpenObject, error) {
+	if len(data) < 4 {
+		return nil, fmt.Errorf("data len is %d but should be 4", len(data))
+	}
 	open := &OpenObject{
 		Version:   data[0] >> 5,
 		Flags:     data[0] & (32 - 1),
@@ -24,7 +28,10 @@ func parseOpenObject(data []byte) *OpenObject {
 		DeadTimer: data[2],
 		SID:       data[3],
 	}
-	return open
+	if open.Version != 1 {
+		return nil, fmt.Errorf("unknown version %d but must be 1", open.Version)
+	}
+	return open, nil
 }
 
 //StatefulPCECapability  rfc8231#section-7.1.1
@@ -36,24 +43,17 @@ type StatefulPCECapability struct {
 }
 
 // https://tools.ietf.org/html/rfc8231#section-7.1.1
-func parseStatefulPCECap(data []byte) *StatefulPCECapability {
+func parseStatefulPCECap(data []byte) (*StatefulPCECapability, error) {
 	UFlag, err := uintToBool(readBits(data[7], 0))
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	sCap := &StatefulPCECapability{
+	return &StatefulPCECapability{
 		Type:   binary.BigEndian.Uint16(data[:2]),
 		Length: binary.BigEndian.Uint16(data[2:4]),
 		Flags:  binary.BigEndian.Uint32(data[4:8]),
 		UFlag:  UFlag,
-	}
-	logrus.WithFields(logrus.Fields{
-		"type":   sCap.Type,
-		"length": sCap.Length,
-		"flags":  sCap.Flags,
-		"uflag":  sCap.UFlag,
-	}).Info("parsed stateful capability obj")
-	return sCap
+	}, nil
 }
 
 //SRPCECap  https://tools.ietf.org/html/draft-ietf-pce-segment-routing-14#section-5.1
@@ -67,14 +67,14 @@ type SRPCECap struct {
 }
 
 // https://tools.ietf.org/html/draft-ietf-pce-segment-routing-14#section-5
-func parseSRCap(data []byte) *SRPCECap {
+func parseSRCap(data []byte) (*SRPCECap, error) {
 	NAIToSID, err := uintToBool(readBits(data[6], 6))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	NoMSDLimit, err := uintToBool(readBits(data[6], 7))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	srCap := &SRPCECap{
 		Type:       binary.BigEndian.Uint16(data[:2]),
@@ -92,5 +92,5 @@ func parseSRCap(data []byte) *SRPCECap {
 		"nomsdlimit": srCap.NoMSDLimit,
 		"msd":        srCap.MSD,
 	}).Info("parsed sr capability obj")
-	return srCap
+	return srCap, nil
 }

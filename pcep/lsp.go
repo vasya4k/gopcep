@@ -123,6 +123,9 @@ func (l *LSP) parseLSPObj(data []byte) error {
 	// there is a better solution but i do not have time right now
 	l.Oper = ((data[3] >> 4) << 5) >> 5
 	l.PLSPID = binary.BigEndian.Uint32(data[:4]) >> 12
+	if l.PLSPID == 0 {
+		return fmt.Errorf("PLSPID has a 0 value which mus not be used")
+	}
 	l.parseLSPSubObj(data[4:])
 	return nil
 }
@@ -133,7 +136,7 @@ func (l *LSP) parseLSPSubObj(data []byte) error {
 		err     error
 		counter int
 	)
-	// +4 is needed because obj header is not included in length
+	// +4 is needed because obj header is not included into length
 	for (len(data) - int(offset)) > 4 {
 		counter++
 		switch binary.BigEndian.Uint16(data[offset : offset+2]) {
@@ -156,14 +159,6 @@ func (l *LSP) parseLSPSubObj(data []byte) error {
 			length := binary.BigEndian.Uint16(data[offset+2 : offset+4])
 			l.Name = string(data[offset+4 : offset+4+length])
 			offset = offset + (length + (4 - (length % 4))) + 4
-
-			logrus.WithFields(logrus.Fields{
-				"type":     binary.BigEndian.Uint16(data[offset : offset+2]),
-				"length":   length,
-				"lsp_name": l.Name,
-				"offset":   offset,
-				"counter":  counter,
-			}).Info("unknown object type")
 			continue
 		default:
 			logrus.WithFields(logrus.Fields{

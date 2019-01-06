@@ -5,8 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
 	"math/bits"
+
+	"github.com/sirupsen/logrus"
 )
 
 // SRLSP represents a Segment routing LSP
@@ -25,64 +26,48 @@ type SRLSP struct {
 	BW           uint32
 }
 
-// InitLSP aaaa
+// InitSRLSP aaaa
 func (s *Session) InitSRLSP(l *SRLSP) error {
 	sro, err := s.newSRPObject()
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("SRO %d bin string %08b \n", len(sro), sro)
 	lsp, err := s.newLSPObj(l.Delegate, l.Sync, l.Remove, l.Admin, l.Name)
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("lsp %d bin string %08b \n", len(lsp), lsp)
 	ep, err := newEndpointsObj(l.Src, l.Dst)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("ep %d bin string %08b \n", len(ep), ep)
 	ero, err := newSRERObj(l.EROList)
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("ero %d bin string %08b \n", len(ero), ero)
 	lspa, err := newLSPAObject(l.SetupPrio, l.HoldPrio, l.LocalProtect)
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("lspa %d bin string %08b \n", len(lspa), lspa)
-	// bw, err := newBandwidthObj(1, l.BW)
-	// if err != nil {
-	// 	return err
-	// }
-	// fmt.Printf("bw %d bin string %08b \n", len(bw), bw)
 	msg := append(sro, lsp...)
-	// fmt.Printf("msg %d bin string %08b \n", len(msg), msg)
 	msg = append(msg, ep...)
-	// fmt.Printf("msg ep %d bin string %08b \n", len(msg), msg)
 	msg = append(msg, ero...)
 	msg = append(msg, lspa...)
-	// msg = append(msg, bw...)
-
 	ch, err := newCommonHeader(12, uint16(len(msg)))
 	if err != nil {
 		return err
 	}
 	ch = append(ch, msg...)
-	// fmt.Printf("Len %d bin string %08b \n", len(ch), ch)
 	i, err := s.Conn.Write(ch)
 	if err != nil {
-		log.Println(err)
+		logrus.WithFields(logrus.Fields{
+			"type": "err",
+			"func": "s.Conn.Write",
+		}).Error(err)
 	}
-	log.Printf("Sent LSP Initiate Request: %d byte", i)
-	// parseCommonHeader(ch[:4])
-	// parseCommonObjectHeader(ch[4:8])
-	// parseCommonObjectHeader(ch[16:20])
-	// parseCommonObjectHeader(ch[36:40])
-	// parseCommonObjectHeader(ch[48:52])
-	// parseCommonObjectHeader(ch[64:68])
-	// parseCommonObjectHeader(ch[84:88])
+	logrus.WithFields(logrus.Fields{
+		"type":  "info",
+		"event": "Initiate Request",
+	}).Info(fmt.Sprintf("Sent LSP Initiate Request: %d byte", i))
 	return nil
 }
 
@@ -114,10 +99,6 @@ func (s *Session) newSRPObject() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// sro, err := newCommonObjHeader(33, 1, true, buf.Bytes())
-	// if err != nil {
-	// 	return nil, err
-	// }
 	return sro, nil
 }
 
@@ -141,7 +122,6 @@ func newPathSetupObj() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("msg newPathSetupObj %d bin string %08b \n", len(buf.Bytes()), buf.Bytes())
 	return buf.Bytes(), nil
 }
 
@@ -388,8 +368,6 @@ func newSREROSubObject(ero SREROSub) ([]byte, error) {
 		}
 		byteERO = append(byteERO, buf.Bytes()...)
 		byteERO[1] = uint8(len(byteERO))
-		fmt.Printf("SUB ERO %d bin string %08b \n", len(byteERO), byteERO)
-
 		return byteERO, nil
 	case 2:
 		return nil, errors.New("IPv6 Node ID not implemented yet")

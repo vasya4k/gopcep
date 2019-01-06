@@ -19,7 +19,6 @@ func parseSRP(data []byte) *SRPObject {
 		Flags:       binary.BigEndian.Uint32(data[0:4]),
 		SRPIDNumber: binary.BigEndian.Uint32(data[4:8]),
 	}
-
 }
 
 //PathSetupType https://tools.ietf.org/html/rfc8408#section-4
@@ -50,8 +49,14 @@ func (s Session) handleErrObj(data []byte) {
 
 	for (len(data) - int(offset)) > 4 {
 
-		coh := parseCommonObjectHeader(data[offset : offset+4])
-
+		coh, err := parseCommonObjectHeader(data[offset : offset+4])
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type": "err",
+				"func": "parseErrObj",
+			}).Error(err)
+			return
+		}
 		if coh.ObjectClass != 13 {
 			offset = coh.ObjectLength
 			logrus.WithFields(logrus.Fields{
@@ -90,109 +95,138 @@ func (s Session) handleErrObj(data []byte) {
 func (s Session) HandlePCRpt(data []byte) {
 	// fmt.Printf("Int %08b \n", data)
 	var (
-		offset uint16
-		lsp    LSP
+		offset    uint16
+		newOffset uint16
+		lsp       LSP
 	)
-	for (len(data) - int(offset)) > 4 {
-		coh := parseCommonObjectHeader(data[offset : offset+4])
+	for (len(data) - int(newOffset)) > 4 {
+		offset = newOffset
+		coh, err := parseCommonObjectHeader(data[newOffset : newOffset+4])
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type": "err",
+				"func": "parseERO",
+			}).Error(err)
+			return
+		}
+		newOffset = newOffset + coh.ObjectLength
 		printCommonObjHdr(coh, "found obj in report msg")
 		switch coh.ObjectClass {
-		case 33:
-			if coh.ObjectType == 1 {
-				srp := parseSRP(data[offset+4:])
-				lsp.SRPID = srp.SRPIDNumber
-				offset = offset + coh.ObjectLength
-				continue
-			}
-		case 32:
-			if coh.ObjectType == 1 {
-				err := lsp.parseLSPObj(data[offset+4 : offset+4+coh.ObjectLength])
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"type": "err",
-						"func": "parseLSPObj",
-					}).Error(err)
-					offset = offset + coh.ObjectLength
-					continue
-				}
-				offset = offset + coh.ObjectLength
-				continue
-			}
-		case 7:
-			if coh.ObjectType == 1 {
-				var err error
-				lsp.SREROList, err = parseERO(data[offset+4 : offset+coh.ObjectLength])
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"type": "err",
-						"func": "parseERO",
-					}).Error(err)
-					offset = offset + coh.ObjectLength
-					continue
-				}
-				offset = offset + coh.ObjectLength
-				continue
-			}
-		case 9:
-			if coh.ObjectType == 1 {
-				err := lsp.parseLSPAObj(data[offset+4 : offset+coh.ObjectLength])
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"type": "err",
-						"func": "parseERO",
-					}).Error(err)
-					offset = offset + coh.ObjectLength
-					continue
-				}
-				offset = offset + coh.ObjectLength
-				continue
-			}
 		case 5:
-			if coh.ObjectType == 1 {
-				lsp.BW = binary.BigEndian.Uint32(data[offset+4 : offset+8])
-				offset = offset + coh.ObjectLength
-				continue
+			if coh.ObjectType != 1 {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "bandwidth",
+				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
 			}
-		case 6:
-			if coh.ObjectType == 1 {
-				m, err := parseMetric(data[offset+4 : offset+coh.ObjectLength])
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"type": "err",
-						"func": "parseERO",
-					}).Error(err)
-					offset = offset + coh.ObjectLength
-					continue
-				}
-				printAsJSON(m)
-				offset = offset + coh.ObjectLength
-				continue
-			}
-		case 8:
-			if coh.ObjectType == 1 {
-				var err error
-				lsp.SRRROList, err = parseRRO(data[offset+4 : offset+coh.ObjectLength])
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"type": "err",
-						"func": "parseERO",
-					}).Error(err)
-					offset = offset + coh.ObjectLength
-					continue
-				}
-				offset = offset + coh.ObjectLength
-				continue
-			}
-			fmt.Printf("After Int %08b len: %d\n", data[offset+4:offset+coh.ObjectLength], len(data[offset+4:offset+coh.ObjectLength]))
-			offset = offset + coh.ObjectLength
+			lsp.BW = binary.BigEndian.Uint32(data[offset+4 : offset+8])
 			continue
-
+		case 6:
+			if coh.ObjectType != 1 {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseMetric",
+				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
+				return
+			}
+			_, err := parseMetric(data[offset+4 : offset+coh.ObjectLength])
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseERO",
+				}).Error(err)
+				return
+			}
+			continue
+		case 7:
+			if coh.ObjectType != 1 {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseERO",
+				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
+				return
+			}
+			lsp.SREROList, err = parseERO(data[offset+4 : offset+coh.ObjectLength])
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseERO",
+				}).Error(err)
+				return
+			}
+			continue
+		case 8:
+			if coh.ObjectType != 1 {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseMetric",
+				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
+				return
+			}
+			lsp.SRRROList, err = parseRRO(data[offset+4 : offset+coh.ObjectLength])
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseERO",
+				}).Error(err)
+				return
+			}
+			continue
+		case 9:
+			if coh.ObjectType != 1 {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseLSPAObj",
+				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
+				return
+			}
+			err := lsp.parseLSPAObj(data[offset+4 : offset+coh.ObjectLength])
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseERO",
+				}).Error(err)
+				return
+			}
+			continue
+		case 32:
+			if coh.ObjectType != 1 {
+				fmt.Printf("Int %08b \n", data[offset:offset+4+coh.ObjectLength])
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseLSPObj",
+				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
+				return
+			}
+			err := lsp.parseLSPObj(data[offset+4 : offset+4+coh.ObjectLength])
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseLSPObj",
+				}).Error(err)
+				return
+			}
+			continue
+		case 33:
+			if coh.ObjectType != 1 {
+				logrus.WithFields(logrus.Fields{
+					"type": "err",
+					"func": "parseSRP",
+				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
+				return
+			}
+			srp := parseSRP(data[offset+4:])
+			lsp.SRPID = srp.SRPIDNumber
+			continue
 		default:
 			printCommonObjHdr(coh, "found unknown obj in report msg")
-			offset = offset + coh.ObjectLength
 		}
 	}
 	printAsJSON(lsp)
+	logrus.WithFields(logrus.Fields{
+		"type": "after",
+		"func": "printAsJSON",
+	}).Info("new msg")
 }
 
 func printCommonObjHdr(coh *CommonObjectHeader, msg string) {
