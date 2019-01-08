@@ -13,21 +13,50 @@ import (
 
 //Session holds everything for a PCEP session
 type Session struct {
-	ID          uint8
-	MsgCount    int64
-	State       int
-	Conn        net.Conn
-	RemoteOK    bool
-	LocalOK     bool
-	Keepalive   uint8
-	DeadTimer   uint8
-	LSPs        map[uint32]string
-	IDCounter   uint32
-	SRPID       uint32
-	StopKA      chan struct{}
-	SRCap       *SRPCECap
-	StatefulCap *StatefulPCECapability
-	Open        *OpenObject
+	ID           uint8
+	MsgCount     int64
+	State        int
+	Conn         net.Conn
+	RemoteOK     bool
+	LocalOK      bool
+	Keepalive    uint8
+	DeadTimer    uint8
+	PLSPIDToName map[uint32]string
+	LSPs         map[string]*LSP
+	IDCounter    uint32
+	SRPID        uint32
+	StopKA       chan struct{}
+	SRCap        *SRPCECap
+	StatefulCap  *StatefulPCECapability
+	Open         *OpenObject
+}
+
+func (s *Session) saveUpdLSP(lsp *LSP) {
+	if lsp.Name != "" {
+		s.LSPs[lsp.Name] = lsp
+		s.PLSPIDToName[lsp.PLSPID] = lsp.Name
+
+	} else {
+		s.LSPs[s.PLSPIDToName[lsp.PLSPID]] = lsp
+	}
+}
+
+func (s *Session) delLSP(lsp *LSP) {
+	if lsp.Name != "" {
+		delete(s.LSPs, lsp.Name)
+		delete(s.PLSPIDToName, lsp.PLSPID)
+
+	} else {
+		delete(s.LSPs, s.PLSPIDToName[lsp.PLSPID])
+		delete(s.PLSPIDToName, lsp.PLSPID)
+	}
+}
+
+func (s *Session) getLSP(lsp *LSP) *LSP {
+	if lsp.Name != "" {
+		return s.LSPs[lsp.Name]
+	}
+	return s.LSPs[s.PLSPIDToName[lsp.PLSPID]]
 }
 
 //RcvSessionOpen recive msg handler
