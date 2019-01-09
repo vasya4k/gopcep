@@ -2,10 +2,8 @@ package pcep
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -25,7 +23,7 @@ type Session struct {
 	LSPs         map[string]*LSP
 	IDCounter    uint32
 	SRPID        uint32
-	StopKA       chan struct{}
+	StopKA       chan struct{} `json:"-"`
 	SRCap        *SRPCECap
 	StatefulCap  *StatefulPCECapability
 	Open         *OpenObject
@@ -134,134 +132,102 @@ func (s *Session) SendKeepAlive() {
 
 }
 
+//Configure aa
+func (s *Session) Configure() {
+	s.PLSPIDToName = make(map[uint32]string)
+	s.LSPs = make(map[string]*LSP)
+}
+
 // HandleNewMsg handles incoming data
 func (s *Session) HandleNewMsg(data []byte) {
-	// fmt.Printf("len %d cap %d Whole MSG: %08b \n", len(data), cap(data), data)
-	if len(data) < 4 {
-		return
-	}
-	ch, err := parseCommonHeader(data[:4])
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"type": "err",
-			"func": "parseCommonHeader",
-		}).Error(err)
-		return
-	}
+	var (
+		offset    uint16
+		newOffset uint16
+	)
+	for (len(data) - int(newOffset)) > 4 {
+		offset = newOffset
+		ch, err := parseCommonHeader(data[newOffset : newOffset+4])
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type": "err",
+				"func": "parseCommonHeader",
+			}).Error(err)
+			return
+		}
+		newOffset = newOffset + ch.MessageLength
+		switch {
+		case ch.MessageType == 1:
+			logrus.WithFields(logrus.Fields{
+				"type": "open",
+				"peer": s.Conn.RemoteAddr().String(),
+			}).Info("new msg")
+			go s.RcvSessionOpen(data[offset+4:])
+		case ch.MessageType == 2:
+			logrus.WithFields(logrus.Fields{
+				"type": "keepalive",
+				// "peer": s.Conn.RemoteAddr().String(),
+			}).Info("new msg")
+			// if s.State == 2 {
+			// 	if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
+			// 		logrus.WithFields(logrus.Fields{
+			// 			"type": "before",
+			// 			"func": "InitSRLSP",
+			// 		}).Info("new msg")
+			// 		lsp := &SRLSP{}
+			// 		err := s.InitSRLSP(lsp)
+			// 		if err != nil {
+			// 			fmt.Println(err)
+			// 		}
+			// 		logrus.WithFields(logrus.Fields{
+			// 			"type": "after",
+			// 			"func": "InitSRLSP",
+			// 		}).Info("new msg")
+			// 		s.State = 3
+			// 	}
+			// }
+		case ch.MessageType == 3:
+			log.Println("recv path computation request ")
+		case ch.MessageType == 4:
+			log.Println("recv path computation reply ")
+		case ch.MessageType == 5:
+			log.Println("recv notification ")
+		case ch.MessageType == 6:
+			fmt.Printf("len %d Whole ERR MSG: %08b \n", ch.MessageLength, data[:ch.MessageLength])
+			s.handleErrObj(data[4:])
 
-	switch {
-	case ch.MessageType == 1:
-		logrus.WithFields(logrus.Fields{
-			"type": "open",
-			"peer": s.Conn.RemoteAddr().String(),
-		}).Info("new msg")
-		go s.RcvSessionOpen(data[4:])
-	case ch.MessageType == 2:
-		logrus.WithFields(logrus.Fields{
-			"type": "keepalive",
-			"peer": s.Conn.RemoteAddr().String(),
-		}).Info("new msg")
-		if s.State == 2 {
-			if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
-				lsp := &SRLSP{
-					Delegate: true,
-					Sync:     false,
-					Remove:   false,
-					Admin:    true,
-					Name:     "LSP-1",
-					Src:      "10.10.10.10",
-					Dst:      "14.14.14.14",
-					EROList: []SREROSub{
-						0: SREROSub{
-							LooseHop:   false,
-							MBit:       true,
-							NT:         3,
-							IPv4NodeID: "",
-							SID:        402011,
-							NoSID:      false,
-							IPv4Adjacency: []string{
-								0: "10.1.0.1",
-								1: "10.1.0.0",
-							},
-						},
-						1: SREROSub{
-							LooseHop:   false,
-							MBit:       true,
-							NT:         1,
-							IPv4NodeID: "15.15.15.15",
-							SID:        402015,
-							NoSID:      false,
-						},
-						2: SREROSub{
-							LooseHop:   false,
-							MBit:       true,
-							NT:         1,
-							IPv4NodeID: "14.14.14.14",
-							SID:        402014,
-							NoSID:      false,
-						},
-					},
-					SetupPrio:    7,
-					HoldPrio:     7,
-					LocalProtect: false,
-					BW:           100,
-				}
-				logrus.WithFields(logrus.Fields{
-					"type": "before",
-					"func": "InitSRLSP",
-				}).Info("new msg")
-				err := s.InitSRLSP(lsp)
-				if err != nil {
-					fmt.Println(err)
-				}
-				logrus.WithFields(logrus.Fields{
-					"type": "after",
-					"func": "InitSRLSP",
-				}).Info("new msg")
-				s.State = 3
+		case ch.MessageType == 7:
+			logrus.WithFields(logrus.Fields{
+				"type": "close",
+				"peer": s.Conn.RemoteAddr().String(),
+				"msg":  parseClose(data[offset+8 : offset+12]),
+			}).Info("new msg")
+			err := s.Conn.Close()
+			if err != nil {
+				log.Println(err)
 			}
-		}
-	case ch.MessageType == 3:
-		log.Println("recv path computation request ")
-	case ch.MessageType == 4:
-		log.Println("recv path computation reply ")
-	case ch.MessageType == 5:
-		log.Println("recv notification ")
-	case ch.MessageType == 6:
-		fmt.Printf("len %d cap %d Whole ERR MSG: %08b \n", len(data), cap(data), data)
-		s.handleErrObj(data[4:])
+		case ch.MessageType == 10:
+			logrus.WithFields(logrus.Fields{
+				"type": "path computation lsp state report",
+				// "peer": s.Conn.RemoteAddr().String(),
+				"len": ch.MessageLength,
+			}).Info("new msg")
+			// err := ioutil.WriteFile("/home/egorz/go/src/gopcep/dat1", data[:ch.MessageLength], 0644)
+			// if err != nil {
+			// 	log.Println(err)
+			// }
+			s.HandlePCRpt(data[offset+4 : offset+ch.MessageLength])
+			// fmt.Printf("%s %+v\n", "LSP", lsp)
+			// fmt.Printf("%s %+v\n", "LSPIdentifiers", parseLSPIdentifiers(data[32:52]))
+		case ch.MessageType == 11:
+			log.Println("Path Computation LSP Update Request")
+		case ch.MessageType == 12:
+			log.Println("LSP Initiate Request")
 
-	case ch.MessageType == 7:
-		logrus.WithFields(logrus.Fields{
-			"type": "close",
-			"peer": s.Conn.RemoteAddr().String(),
-			"msg":  parseClose(data[8:12]),
-		}).Info("new msg")
-		err := s.Conn.Close()
-		if err != nil {
-			log.Println(err)
+		default:
+			log.Println("Unknown msg recived")
 		}
-	case ch.MessageType == 10:
-		logrus.WithFields(logrus.Fields{
-			"type": "path computation lsp state report",
-			"peer": s.Conn.RemoteAddr().String(),
-			"len":  len(data[4:]),
-		}).Info("new msg")
-		err := ioutil.WriteFile("/home/egorz/go/src/gopcep/dat1", data, 0644)
-		if err != nil {
-			log.Println(err)
-		}
-		s.HandlePCRpt(data[4:])
-		// fmt.Printf("%s %+v\n", "LSP", lsp)
-		// fmt.Printf("%s %+v\n", "LSPIdentifiers", parseLSPIdentifiers(data[32:52]))
-	case ch.MessageType == 11:
-		log.Println("Path Computation LSP Update Request")
-	case ch.MessageType == 12:
-		log.Println("LSP Initiate Request")
-
-	default:
-		log.Println("Unknown msg recived")
 	}
+	printAsJSON(s)
 }
 
 //SendSessionOpen send OPNE msg handler

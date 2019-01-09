@@ -93,6 +93,7 @@ func (s Session) handleErrObj(data []byte) {
 
 //HandlePCRpt https://tools.ietf.org/html/rfc8231#section-6.1
 func (s Session) HandlePCRpt(data []byte) {
+	fmt.Printf("Int %08b \n", data)
 	// fmt.Printf("Int %08b \n", data)
 	var (
 		offset    uint16
@@ -191,14 +192,13 @@ func (s Session) HandlePCRpt(data []byte) {
 			continue
 		case 32:
 			if coh.ObjectType != 1 {
-				fmt.Printf("Int %08b \n", data[offset:offset+4+coh.ObjectLength])
 				logrus.WithFields(logrus.Fields{
 					"type": "err",
 					"func": "parseLSPObj",
-				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
+				}).Error(fmt.Errorf("unknown obj AAAA type %d", coh.ObjectType))
 				return
 			}
-			err := lsp.parseLSPObj(data[offset+4 : offset+4+coh.ObjectLength])
+			err := lsp.parseLSPObj(data[offset+4 : offset+coh.ObjectLength])
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"type": "err",
@@ -227,6 +227,7 @@ func (s Session) HandlePCRpt(data []byte) {
 		"type": "after",
 		"func": "printAsJSON",
 	}).Info("new msg")
+	s.saveUpdLSP(&lsp)
 }
 
 func printCommonObjHdr(coh *CommonObjectHeader, msg string) {

@@ -28,6 +28,49 @@ type SRLSP struct {
 
 // InitSRLSP aaaa
 func (s *Session) InitSRLSP(l *SRLSP) error {
+	l = &SRLSP{
+		Delegate: true,
+		Sync:     false,
+		Remove:   false,
+		Admin:    true,
+		Name:     "LSP-1",
+		Src:      "10.10.10.10",
+		Dst:      "14.14.14.14",
+		EROList: []SREROSub{
+			0: SREROSub{
+				LooseHop:   false,
+				MBit:       true,
+				NT:         3,
+				IPv4NodeID: "",
+				SID:        402011,
+				NoSID:      false,
+				IPv4Adjacency: []string{
+					0: "10.1.0.1",
+					1: "10.1.0.0",
+				},
+			},
+			1: SREROSub{
+				LooseHop:   false,
+				MBit:       true,
+				NT:         1,
+				IPv4NodeID: "15.15.15.15",
+				SID:        402015,
+				NoSID:      false,
+			},
+			2: SREROSub{
+				LooseHop:   false,
+				MBit:       true,
+				NT:         1,
+				IPv4NodeID: "14.14.14.14",
+				SID:        402014,
+				NoSID:      false,
+			},
+		},
+		SetupPrio:    7,
+		HoldPrio:     7,
+		LocalProtect: false,
+		BW:           100,
+	}
 	sro, err := s.newSRPObject()
 	if err != nil {
 		return err

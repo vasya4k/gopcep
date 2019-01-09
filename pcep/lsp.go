@@ -123,9 +123,9 @@ func (l *LSP) parseLSPObj(data []byte) error {
 	// there is a better solution but i do not have time right now
 	l.Oper = ((data[3] >> 4) << 5) >> 5
 	l.PLSPID = binary.BigEndian.Uint32(data[:4]) >> 12
-	if l.PLSPID == 0 {
-		return fmt.Errorf("PLSPID has a 0 value which mus not be used")
-	}
+	// if l.PLSPID == 0 {
+	// 	return fmt.Errorf("PLSPID has a 0 value which mus not be used")
+	// }
 	l.parseLSPSubObj(data[4:])
 	return nil
 }
