@@ -44,6 +44,9 @@ type StatefulPCECapability struct {
 
 // https://tools.ietf.org/html/rfc8231#section-7.1.1
 func parseStatefulPCECap(data []byte) (*StatefulPCECapability, error) {
+	if len(data) < 8 {
+		return nil, fmt.Errorf("data len is %d but should be 8", len(data))
+	}
 	UFlag, err := uintToBool(readBits(data[7], 0))
 	if err != nil {
 		return nil, err
@@ -68,6 +71,9 @@ type SRPCECap struct {
 
 // https://tools.ietf.org/html/draft-ietf-pce-segment-routing-14#section-5
 func parseSRCap(data []byte) (*SRPCECap, error) {
+	if len(data) < 8 {
+		return nil, fmt.Errorf("data len is %d but should be 8", len(data))
+	}
 	NAIToSID, err := uintToBool(readBits(data[6], 6))
 	if err != nil {
 		return nil, err

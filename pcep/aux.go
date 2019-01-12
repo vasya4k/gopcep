@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+
+	"github.com/sirupsen/logrus"
 )
 
 const uintToBoolErr = "Bool value is not 1 or zero"
@@ -68,6 +70,18 @@ func ipToUnit32(ipStr string) (uint32, error) {
 	}
 	binary.Read(bytes.NewBuffer(ipv4), binary.BigEndian, &res)
 	return res, nil
+}
+
+func printCommonObjHdr(coh *CommonObjectHeader, msg string) {
+	logrus.WithFields(logrus.Fields{
+		"type": coh.ObjectType,
+		// "peer":          s.Conn.RemoteAddr().String(),
+		"class":         coh.ObjectClass,
+		"process_rules": coh.ProcessingRule,
+		"length":        coh.ObjectLength,
+		"ignore":        coh.Ignore,
+		"reserved":      coh.Reservedfield,
+	}).Info(msg)
 }
 
 // package main

@@ -8,8 +8,8 @@ import (
 	"net"
 )
 
+// https://tools.ietf.org/html/draft-ietf-pce-segment-routing-14#section-5.3.1
 func parseERO(data []byte) ([]*SREROSub, error) {
-	// fmt.Printf("After Int %08b \n", data)
 	eros := make([]*SREROSub, 0)
 	var offset int
 	for (len(data) - offset) > 4 {

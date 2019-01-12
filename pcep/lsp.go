@@ -16,17 +16,14 @@ func (s *Session) InitLSP(l *LSP) error {
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("SRO %d bin string %08b \n", len(sro), sro)
 	lsp, err := s.newLSPObj(l.Delegate, l.Sync, l.Remove, l.Admin, l.Name)
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("lsp %d bin string %08b \n", len(lsp), lsp)
 	ep, err := newEndpointsObj(l.Src, l.Dst)
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("ep %d bin string %08b \n", len(ep), ep)
 	ero, err := newERObj(l.EROList)
 	if err != nil {
 		return err
@@ -36,38 +33,21 @@ func (s *Session) InitLSP(l *LSP) error {
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("lspa %d bin string %08b \n", len(lspa), lspa)
-	// bw, err := newBandwidthObj(1, l.BW)
-	// if err != nil {
-	// 	return err
-	// }
-	// fmt.Printf("bw %d bin string %08b \n", len(bw), bw)
 	msg := append(sro, lsp...)
-	// fmt.Printf("msg %d bin string %08b \n", len(msg), msg)
 	msg = append(msg, ep...)
-	// fmt.Printf("msg ep %d bin string %08b \n", len(msg), msg)
 	msg = append(msg, ero...)
 	msg = append(msg, lspa...)
-	// msg = append(msg, bw...)
 
 	ch, err := newCommonHeader(12, uint16(len(msg)))
 	if err != nil {
 		return err
 	}
 	ch = append(ch, msg...)
-	// fmt.Printf("Len %d bin string %08b \n", len(ch), ch)
 	i, err := s.Conn.Write(ch)
 	if err != nil {
 		log.Println(err)
 	}
 	log.Printf("Sent LSP Initiate Request: %d byte", i)
-	// parseCommonHeader(ch[:4])
-	// parseCommonObjectHeader(ch[4:8])
-	// parseCommonObjectHeader(ch[16:20])
-	// parseCommonObjectHeader(ch[36:40])
-	// parseCommonObjectHeader(ch[48:52])
-	// parseCommonObjectHeader(ch[64:68])
-	// parseCommonObjectHeader(ch[84:88])
 	return nil
 }
 
@@ -269,4 +249,35 @@ func parseMetric(data []byte) (*LSPMetric, error) {
 	u := binary.BigEndian.Uint32(data[4:8])
 	m.Metric = math.Float32frombits(u)
 	return &m, nil
+}
+
+//SRPObject https://tools.ietf.org/html/rfc8231#section-7.2
+type SRPObject struct {
+	Flags       uint32
+	SRPIDNumber uint32
+}
+
+// https://tools.ietf.org/html/rfc8231#section-7.2
+func parseSRP(data []byte) *SRPObject {
+	return &SRPObject{
+		Flags:       binary.BigEndian.Uint32(data[0:4]),
+		SRPIDNumber: binary.BigEndian.Uint32(data[4:8]),
+	}
+}
+
+//PathSetupType https://tools.ietf.org/html/rfc8408#section-4
+type PathSetupType struct {
+	Type   uint16
+	Length uint16
+	PST    uint8
+}
+
+// https://tools.ietf.org/html/rfc8408#section-4
+func parsePathSetupType(data []byte) *PathSetupType {
+	return &PathSetupType{
+		Type:   binary.BigEndian.Uint16(data[:2]),
+		Length: binary.BigEndian.Uint16(data[2:4]),
+		PST:    data[7],
+	}
+
 }
