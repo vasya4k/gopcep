@@ -11,15 +11,16 @@ import (
 
 var routineCount int
 
-const msgTooShortErr = "recived msg is too short to parse common header and common object header out of it"
+const msgTooShortErr = "recived msg is too short to be able to parse common header "
 
 func handleTCPConn(conn net.Conn) {
+	defer conn.Close()
 	routineCount++
 	s := &pcep.Session{
 		Conn:   conn,
 		StopKA: make(chan struct{}),
 	}
-	defer conn.Close()
+	s.Configure()
 	buff := make([]byte, 1024)
 	for {
 		l, err := conn.Read(buff)

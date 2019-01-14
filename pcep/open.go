@@ -36,10 +36,15 @@ func parseOpenObject(data []byte) (*OpenObject, error) {
 
 //StatefulPCECapability  rfc8231#section-7.1.1
 type StatefulPCECapability struct {
-	Type   uint16
-	Length uint16
-	Flags  uint32
-	UFlag  bool
+	Type                 uint16
+	Length               uint16
+	Flags                uint32
+	TriggeredInitialSync bool
+	DeltaLSPSyncCap      bool
+	TriggeredResync      bool
+	LSPInitCap           bool
+	IncludeDBVersion     bool
+	UPDFlag              bool
 }
 
 // https://tools.ietf.org/html/rfc8231#section-7.1.1
@@ -51,11 +56,36 @@ func parseStatefulPCECap(data []byte) (*StatefulPCECapability, error) {
 	if err != nil {
 		return nil, err
 	}
+	IncludeDBVersion, err := uintToBool(readBits(data[7], 1))
+	if err != nil {
+		return nil, err
+	}
+	LSPInitCap, err := uintToBool(readBits(data[7], 2))
+	if err != nil {
+		return nil, err
+	}
+	TriggeredResync, err := uintToBool(readBits(data[7], 3))
+	if err != nil {
+		return nil, err
+	}
+	DeltaLSPSyncCap, err := uintToBool(readBits(data[7], 4))
+	if err != nil {
+		return nil, err
+	}
+	TriggeredInitialSync, err := uintToBool(readBits(data[7], 5))
+	if err != nil {
+		return nil, err
+	}
 	return &StatefulPCECapability{
-		Type:   binary.BigEndian.Uint16(data[:2]),
-		Length: binary.BigEndian.Uint16(data[2:4]),
-		Flags:  binary.BigEndian.Uint32(data[4:8]),
-		UFlag:  UFlag,
+		Type:                 binary.BigEndian.Uint16(data[:2]),
+		Length:               binary.BigEndian.Uint16(data[2:4]),
+		Flags:                binary.BigEndian.Uint32(data[4:8]),
+		TriggeredInitialSync: TriggeredInitialSync,
+		DeltaLSPSyncCap:      DeltaLSPSyncCap,
+		TriggeredResync:      TriggeredResync,
+		LSPInitCap:           LSPInitCap,
+		IncludeDBVersion:     IncludeDBVersion,
+		UPDFlag:              UFlag,
 	}, nil
 }
 

@@ -25,7 +25,7 @@ func (s Session) HandlePCRpt(data []byte) {
 			return
 		}
 		newOffset = newOffset + coh.ObjectLength
-		printCommonObjHdr(coh, "found obj in report msg")
+		// printCommonObjHdr(coh, "found obj in report msg")
 		switch coh.ObjectClass {
 		case 5:
 			if coh.ObjectType != 1 {
@@ -137,6 +137,12 @@ func (s Session) HandlePCRpt(data []byte) {
 		default:
 			printCommonObjHdr(coh, "found unknown obj in report msg")
 		}
+	}
+	if lsp.PLSPID == 0 && lsp.Name == "" {
+		logrus.WithFields(logrus.Fields{
+			"event": "empty lsp name and zero plspid in pcrpt",
+		}).Info("found lsp with no id skipping")
+		return
 	}
 	printAsJSON(lsp)
 	logrus.WithFields(logrus.Fields{
