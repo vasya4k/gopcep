@@ -12,7 +12,7 @@ import (
 //Session holds everything for a PCEP session
 type Session struct {
 	ID           uint8
-	MsgCount     int64
+	MsgCount     uint64
 	State        int
 	Conn         net.Conn
 	RemoteOK     bool
@@ -290,8 +290,12 @@ func (s *Session) HandleNewMsg(data []byte) {
 			log.Println("LSP Initiate Request")
 
 		default:
-			log.Println("Unknown msg recived")
+			log.Println("Unknown msg received")
 		}
 	}
-	// printAsJSON(s)
+	// printAsJSON(s)func (s *Session) HandleNewMsg(data []byte) {
+}
+
+func (s *Session) deadTimer() {
+
 }
