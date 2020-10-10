@@ -69,7 +69,7 @@ func (s *Session) RcvSessionOpen(data []byte) {
 		return
 	}
 	if h.ObjectClass != 1 && h.ObjectType != 1 {
-		log.Printf("Remote IP: %s, object class and object type do not mathc OPEN msg RFC defenitions", s.Conn.RemoteAddr())
+		log.Printf("Remote IP: %s, object class and object type do not match OPEN msg RFC definitions", s.Conn.RemoteAddr())
 		return
 	}
 	s.Open, err = parseOpenObject(data[4:8])
@@ -100,7 +100,7 @@ func (s *Session) RcvSessionOpen(data []byte) {
 	s.SendSessionOpen()
 }
 
-//SendSessionOpen send OPNE msg handler
+//SendSessionOpen send OPEN msg handler
 func (s *Session) SendSessionOpen() {
 	//[00100000 00000001 00000000 00011100]
 	commH := []byte{

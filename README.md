@@ -16,6 +16,7 @@
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
                      Figure 9: OPEN Object Format
+                     
  As of today 02.12.2018 and testing against Juniper vMX JunOS 17.2R1.13
  If you see Common Object Header length is 24 Bytes 4 bytes is the CommonObjectHeader
  next 4 bytes is OPEN Object so it is 24-4-4 = 16. The remainig 16 are Optional TLVs and can be found
