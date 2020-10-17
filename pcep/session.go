@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -197,11 +198,15 @@ func (s *Session) SendKeepAlive() {
 
 }
 
-//Configure aa
-func (s *Session) Configure() {
-	s.Keepalive = 30
-	s.PLSPIDToName = make(map[uint32]string)
-	s.LSPs = make(map[string]*LSP)
+//NewSession aa
+func NewSession() *Session {
+	return &Session{
+		// Conn:         conn,
+		StopKA:       make(chan struct{}),
+		Keepalive:    30,
+		PLSPIDToName: make(map[uint32]string),
+		LSPs:         make(map[string]*LSP),
+	}
 }
 
 // HandleNewMsg handles incoming data
@@ -210,7 +215,7 @@ func (s *Session) HandleNewMsg(data []byte) {
 		offset    uint16
 		newOffset uint16
 	)
-	for (len(data) - int(newOffset)) > 4 {
+	for (len(data) - int(newOffset)) >= 4 {
 		offset = newOffset
 		ch, err := parseCommonHeader(data[newOffset : newOffset+4])
 		if err != nil {
@@ -232,25 +237,25 @@ func (s *Session) HandleNewMsg(data []byte) {
 			logrus.WithFields(logrus.Fields{
 				"type": "keepalive",
 				"peer": s.Conn.RemoteAddr().String(),
-			}).Info("new msg")
-			// if s.State == 2 {
-			// 	if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
-			// 		logrus.WithFields(logrus.Fields{
-			// 			"type": "before",
-			// 			"func": "InitSRLSP",
-			// 		}).Info("new msg")
-			// 		lsp := &SRLSP{}
-			// 		err := s.InitSRLSP(lsp)
-			// 		if err != nil {
-			// 			fmt.Println(err)
-			// 		}
-			// 		logrus.WithFields(logrus.Fields{
-			// 			"type": "after",
-			// 			"func": "InitSRLSP",
-			// 		}).Info("new msg")
-			// 		s.State = 3
-			// 	}
-			// }
+			}).Info("rcv new msg")
+			if s.State == 2 {
+				if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
+					logrus.WithFields(logrus.Fields{
+						"type": "before",
+						"func": "InitSRLSP",
+					}).Info("new msg")
+					lsp := &SRLSP{}
+					err := s.InitSRLSP(lsp)
+					if err != nil {
+						fmt.Println(err)
+					}
+					logrus.WithFields(logrus.Fields{
+						"type": "after",
+						"func": "InitSRLSP",
+					}).Info("new msg")
+					s.State = 3
+				}
+			}
 		case ch.MessageType == 3:
 			log.Println("recv path computation request ")
 		case ch.MessageType == 4:

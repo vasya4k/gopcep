@@ -1,0 +1,37 @@
+// Copyright 2020 doplerradar authors.
+syntax = "proto3";
+
+option go_package = "proto";
+option java_multiple_files = true;
+option java_package = "pce.proto";
+option java_outer_classname = "PCEProto";
+
+package pceapiproto;
+
+// The greeting service definition.
+service PCE {
+  // Sends a greeting
+  rpc GetSessions (SessionsRequest) returns (SessionsReply) {}
+}
+
+
+// The request message containing the user's name.
+message SessionsRequest {
+  string pccName  = 1;
+}
+
+message Session {
+  string ID  = 1;
+  uint64 MsgCount = 2;
+  int32  State = 3;
+  string address = 4;
+  uint32 Keepalive = 5;    
+	uint32 DeadTimer = 6;    
+}
+
+// The response message containing the greetings
+message SessionsReply {
+  repeated Session sessions = 1;
+
+}
+

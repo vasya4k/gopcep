@@ -32,7 +32,7 @@ func parseErrObj(data []byte) (*ErrObj, error) {
 		return nil, errors.New("Object Class is not 13 ")
 	}
 	et := map[int]map[int]string{
-		1: map[int]string{
+		1: {
 			0: "PCEP session establishment failure undefined",
 			1: "PCEP session establishment failure reception of an invalid Open message or a non Open message. ",
 			2: "PCEP session establishment failure no Open message received before the expiration of the OpenWait timer ",
@@ -42,22 +42,22 @@ func parseErrObj(data []byte) (*ErrObj, error) {
 			6: "PCEP session establishment failure reception of a PCErr message proposing unacceptable session characteristics ",
 			7: "PCEP session establishment failure No Keepalive or PCErr message received before the expiration of the KeepWait timer",
 		},
-		2: map[int]string{
+		2: {
 			0: "Capability not supported",
 		},
-		3: map[int]string{
+		3: {
 			1: "Unknown Object Unrecognized object class",
 			2: "Unknown Object Unrecognized object type",
 		},
-		4: map[int]string{
+		4: {
 			1: "Not supported object  class",
 			2: "Not supported object  type",
 		},
-		5: map[int]string{
+		5: {
 			1: "Policy violation C bit of the METRIC object set (request rejected)",
 			2: "Policy violation O bit of the RP object set (request rejected)",
 		},
-		6: map[int]string{
+		6: {
 			1:  "Mandatory Object missing RP object missing",
 			2:  "Mandatory Object missing RRO object missing for a reoptimization request (R bit of the RP object set) when bandwidth is not equal to 0.",
 			3:  "Mandatory Object missing END-POINTS object missing",
@@ -66,16 +66,16 @@ func parseErrObj(data []byte) (*ErrObj, error) {
 			10: "Mandatory Object missing SRP object missing",
 			11: "Mandatory Object missing LSP-IDENTIFIERS TLV missing",
 		},
-		7: map[int]string{
+		7: {
 			0: "Synchronized path computation request missing",
 		},
-		8: map[int]string{
+		8: {
 			0: "Unknown request reference",
 		},
-		9: map[int]string{
+		9: {
 			0: "Attempt to establish a second PCEP session",
 		},
-		10: map[int]string{
+		10: {
 			1:  "Reception of an invalid object reception of an object with P flag not set although the P flag must be set according to this specification.",
 			2:  "Reception of an invalid object Bad label value ",
 			3:  "Reception of an invalid object Unsupported number of SR-ERO subobjects",
@@ -88,7 +88,7 @@ func parseErrObj(data []byte) (*ErrObj, error) {
 			10: "Reception of an invalid object RRO mixes SR-RRO subobjects with other subobject types",
 			11: "Reception of an invalid object Malformed object",
 		},
-		19: map[int]string{
+		19: {
 			1:  "Invalid Operation Attempted LSP Update Request for a non-delegated  LSP.  The PCEP-ERROR object is followed by the LSP object that identifies the LSP.",
 			2:  "Invalid Operation Attempted LSP Update Request if the stateful PCE  capability was not advertised.",
 			3:  "Invalid Operation Attempted LSP Update Request for an LSP identified  by an unknown PLSP-ID.",
@@ -99,20 +99,20 @@ func parseErrObj(data []byte) (*ErrObj, error) {
 			9:  "Invalid Operation Attempted LSP  LSP is not PCE initiated",
 			10: "Invalid Operation Attempted LSP PCE-initiated operation-frequency limit reached",
 		},
-		20: map[int]string{
+		20: {
 			1: "A PCE indicates to a PCC that it cannot process (an otherwise valid) LSP State Report.  The PCEP-ERROR object is followed by the LSP object that identifies the LSP.",
 			5: "A PCC indicates to a PCE that it cannot complete the State Synchronization.",
 		},
-		21: map[int]string{
+		21: {
 			0: "Invalid traffic engineering path setup type Unassigned                   RFC 8408",
 			1: "Invalid traffic engineering path setup type Unsupported path setup type  RFC 8408",
 			2: "Invalid traffic engineering path setup type Mismatched path setup type   RFC 8408",
 		},
-		23: map[int]string{
+		23: {
 			1: "Bad parameter value SYMBOLIC-PATH-NAME in use",
 			2: "Bad parameter value Speaker identity included for an LSP that is not PCE initiated ",
 		},
-		24: map[int]string{
+		24: {
 			1: "LSP instantiation error Unacceptable instantiation parameters	",
 			2: "LSP instantiation error Internal error",
 			3: "LSP instantiation error Signaling error",

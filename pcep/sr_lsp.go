@@ -37,7 +37,7 @@ func (s *Session) InitSRLSP(l *SRLSP) error {
 		Src:      "10.10.10.10",
 		Dst:      "14.14.14.14",
 		EROList: []SREROSub{
-			0: SREROSub{
+			0: {
 				LooseHop:   false,
 				MBit:       true,
 				NT:         3,
@@ -49,7 +49,7 @@ func (s *Session) InitSRLSP(l *SRLSP) error {
 					1: "10.1.0.0",
 				},
 			},
-			1: SREROSub{
+			1: {
 				LooseHop:   false,
 				MBit:       true,
 				NT:         1,
@@ -57,7 +57,7 @@ func (s *Session) InitSRLSP(l *SRLSP) error {
 				SID:        402015,
 				NoSID:      false,
 			},
-			2: SREROSub{
+			2: {
 				LooseHop:   false,
 				MBit:       true,
 				NT:         1,

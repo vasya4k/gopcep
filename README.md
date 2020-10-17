@@ -1,4 +1,30 @@
 
+What is gopcep ?
+
+This package implements Stateful Segment Routing PCE using Path Computation Element Communication Protocol (PCEP).
+With support for PCE-Initiated LSP Setup in a Stateful PCE Model. 
+
+In simple terms a router (Path Computations  Client) with SR and PCEP support connects to PCE (server) which is implemented by this package.
+The PCE (server) pushes LSPs into the router. 
+
+
+List of RFCs for reference: 
+
+rfc8664 (PCEP) Extensions for Segment Routing
+rfc8281 PCEP) Extensions for PCE-Initiated LSP Setup in a Stateful PCE Model
+rfc8231 (PCEP) Extensions for Stateful PCE
+rfc5440  Path Computation Element (PCE) Communication Protocol (PCEP)
+
+
+As of today 02.12.2018 and testing against Juniper vMX JunOS 17.2R1.13
+If you see Common Object Header length is 24 Bytes 4 bytes is the CommonObjectHeader
+next 4 bytes is OPEN Object so it is 24-4-4 = 16. The remainig 16 are Optional TLVs and can be found
+In PCEP extensions described in https:tools.ietf.org/html/rfc8231#section-7.1.1
+Path Computation Element Communication Protocol (PCEP) Extensions for Stateful PCE
+
+
+
+
  OPEN Object-Class is 1.
 
     OPEN Object-Type is 1.
@@ -17,11 +43,7 @@
 
                      Figure 9: OPEN Object Format
                      
- As of today 02.12.2018 and testing against Juniper vMX JunOS 17.2R1.13
- If you see Common Object Header length is 24 Bytes 4 bytes is the CommonObjectHeader
- next 4 bytes is OPEN Object so it is 24-4-4 = 16. The remainig 16 are Optional TLVs and can be found
- In PCEP extensions described in https:tools.ietf.org/html/rfc8231#section-7.1.1
- Path Computation Element Communication Protocol (PCEP) Extensions for Stateful PCE
+ 
 
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
