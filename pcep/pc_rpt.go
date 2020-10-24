@@ -8,6 +8,7 @@ import (
 )
 
 //HandlePCRpt https://tools.ietf.org/html/rfc8231#section-6.1
+// A Path Computation LSP State Report message
 func (s Session) HandlePCRpt(data []byte) {
 	var (
 		offset    uint16

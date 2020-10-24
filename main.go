@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gopcep/grpcapi"
 	"gopcep/pcep"
 	"log"
 	"net"
@@ -10,14 +11,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var routineCount int
+// var routineCount int
 
 const msgTooShortErr = "recived msg is too short to be able to parse common header "
 
-func handleTCPConn(conn net.Conn) {
+func handleTCPConn(conn net.Conn, gAPI *grpcapi.GRPCAPI) {
 	defer conn.Close()
 
-	routineCount++
+	// routineCount++
 	s := &pcep.Session{
 		Conn:         conn,
 		StopKA:       make(chan struct{}),
@@ -25,7 +26,7 @@ func handleTCPConn(conn net.Conn) {
 		PLSPIDToName: make(map[uint32]string),
 		LSPs:         make(map[string]*pcep.LSP),
 	}
-	// gAPI.StorePSessions(conn.RemoteAddr().String(), s)
+	gAPI.StorePSessions(conn.RemoteAddr().String(), s)
 
 	buff := make([]byte, 1024)
 	for {
@@ -33,7 +34,7 @@ func handleTCPConn(conn net.Conn) {
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"remote_addr": conn.RemoteAddr().String(),
-				"count":       routineCount,
+				// "count":       routineCount,
 			}).Error(err)
 			close(s.StopKA)
 			return
@@ -55,7 +56,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	// gAPI := grpcapi.Start(&grpcapi.Config{Address: "127.0.0.1", Port: "12345"})
+	gAPI := grpcapi.Start(&grpcapi.Config{Address: "127.0.0.1", Port: "12345"})
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -65,7 +66,7 @@ func main() {
 			logrus.WithFields(logrus.Fields{
 				"remote_addr": conn.RemoteAddr().String(),
 			}).Info("new connection")
-			go handleTCPConn(conn)
+			go handleTCPConn(conn, gAPI)
 		}
 	}
 }
