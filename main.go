@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"gopcep/grpcapi"
 	"gopcep/pcep"
 	"log"
@@ -11,21 +10,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// var routineCount int
-
 const msgTooShortErr = "recived msg is too short to be able to parse common header "
 
 func handleTCPConn(conn net.Conn, gAPI *grpcapi.GRPCAPI) {
 	defer conn.Close()
 
-	// routineCount++
-	s := &pcep.Session{
-		Conn:         conn,
-		StopKA:       make(chan struct{}),
-		Keepalive:    30,
-		PLSPIDToName: make(map[uint32]string),
-		LSPs:         make(map[string]*pcep.LSP),
-	}
+	s := pcep.NewSession(conn)
 	gAPI.StorePSessions(conn.RemoteAddr().String(), s)
 
 	buff := make([]byte, 1024)
@@ -34,14 +24,9 @@ func handleTCPConn(conn net.Conn, gAPI *grpcapi.GRPCAPI) {
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"remote_addr": conn.RemoteAddr().String(),
-				// "count":       routineCount,
 			}).Error(err)
 			close(s.StopKA)
 			return
-		}
-		if l < 4 {
-			fmt.Printf("Something is not right %d", l)
-			continue
 		}
 		s.HandleNewMsg(buff[:l])
 	}

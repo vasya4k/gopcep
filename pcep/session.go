@@ -25,7 +25,7 @@ type Session struct {
 	IDCounter    uint32
 	SRPID        uint32
 	StopKA       chan struct{} `json:"-"`
-	RcvKA        chan struct{} `json:"-"`
+	RcvKA        chan bool     `json:"-"`
 	SRCap        *SRPCECap
 	StatefulCap  *StatefulPCECapability
 	Open         *OpenObject
@@ -82,6 +82,13 @@ func (s *Session) RcvSessionOpen(data []byte) {
 		}).Error(err)
 		return
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"topic":    "open",
+		"peer":     s.Conn.RemoteAddr().String(),
+		"open_obj": fmt.Sprintf("%+v", s.Open),
+	}).Info("parsed open obj")
+
 	s.ID = s.Open.SID
 	s.StatefulCap, err = parseStatefulPCECap(data[8:16])
 	if err != nil {
@@ -99,6 +106,7 @@ func (s *Session) RcvSessionOpen(data []byte) {
 		}).Error(err)
 		return
 	}
+	go s.HandleKeepAlive()
 	s.SendSessionOpen()
 }
 
@@ -186,10 +194,12 @@ func (s *Session) SendKeepAlive() {
 			}).Info("stopping keepalive")
 			return
 		default:
-
 			_, err := s.Conn.Write(commH)
 			if err != nil {
-				log.Println("SendKeepAlive", err)
+				logrus.WithFields(logrus.Fields{
+					"topic": "tcp write failure",
+					"peer":  s.Conn.RemoteAddr().String(),
+				}).Error(err)
 				return
 			}
 			// log.Printf("keep alive sent %d bytes", i)
@@ -200,14 +210,54 @@ func (s *Session) SendKeepAlive() {
 
 //HandleKeepAlive start sending keep alive msgs
 func (s *Session) HandleKeepAlive() {
+	for {
+		select {
+		case res := <-s.RcvKA:
+			logrus.WithFields(logrus.Fields{
+				"topic": "recieved keepalive",
+				"peer":  s.Conn.RemoteAddr().String(),
+			}).Info(res)
+		case <-time.After(time.Duration(s.Open.DeadTimer) * time.Second):
+			logrus.WithFields(logrus.Fields{
+				"topic": "dead timer expiried",
+				"peer":  s.Conn.RemoteAddr().String(),
+			}).Info("sending close")
 
+			// https://tools.ietf.org/html/rfc5440#section-7.17
+			// 2          DeadTimer expired
+			msg, err := newCloseMsg(2)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"topic": "close msg creation failure",
+					"peer":  s.Conn.RemoteAddr().String(),
+				}).Error(err)
+				return
+			}
+			_, err = s.Conn.Write(msg)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"topic": "tcp write failure",
+					"peer":  s.Conn.RemoteAddr().String(),
+				}).Error(err)
+				return
+			}
+			err = s.Conn.Close()
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"topic": "tcp conn close failure",
+					"peer":  s.Conn.RemoteAddr().String(),
+				}).Error(err)
+			}
+		}
+	}
 }
 
 //NewSession aa
-func NewSession() *Session {
+func NewSession(conn net.Conn) *Session {
 	return &Session{
-		// Conn:         conn,
+		Conn:         conn,
 		StopKA:       make(chan struct{}),
+		RcvKA:        make(chan bool),
 		Keepalive:    30,
 		PLSPIDToName: make(map[uint32]string),
 		LSPs:         make(map[string]*LSP),
@@ -243,6 +293,8 @@ func (s *Session) HandleNewMsg(data []byte) {
 				"type": "keepalive",
 				"peer": s.Conn.RemoteAddr().String(),
 			}).Info("rcv new msg")
+			// s.RcvKA <- true
+
 			if s.State == 2 {
 				if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
 					logrus.WithFields(logrus.Fields{
@@ -285,9 +337,15 @@ func (s *Session) HandleNewMsg(data []byte) {
 				"peer": s.Conn.RemoteAddr().String(),
 				"msg":  parseClose(data[offset+8 : offset+12]),
 			}).Info("new msg")
+
 			err := s.Conn.Close()
 			if err != nil {
-				log.Println(err)
+				if err != nil {
+					logrus.WithFields(logrus.Fields{
+						"topic": "tcp conn close failure",
+						"peer":  s.Conn.RemoteAddr().String(),
+					}).Error(err)
+				}
 			}
 		case ch.MessageType == 10:
 			logrus.WithFields(logrus.Fields{
