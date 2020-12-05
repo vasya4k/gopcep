@@ -31,6 +31,18 @@ type Session struct {
 	Open         *OpenObject
 }
 
+//NewSession creates a new session with defaults
+func NewSession(conn net.Conn) *Session {
+	return &Session{
+		Conn:         conn,
+		StopKA:       make(chan struct{}),
+		RcvKA:        make(chan bool),
+		Keepalive:    30,
+		PLSPIDToName: make(map[uint32]string),
+		LSPs:         make(map[string]*LSP),
+	}
+}
+
 func (s *Session) saveUpdLSP(lsp *LSP) {
 	if lsp.Name != "" {
 		s.LSPs[lsp.Name] = lsp
@@ -59,8 +71,12 @@ func (s *Session) getLSP(lsp *LSP) *LSP {
 	return s.LSPs[s.PLSPIDToName[lsp.PLSPID]]
 }
 
-//RcvSessionOpen recive msg handler
-func (s *Session) RcvSessionOpen(data []byte) {
+//ProcessOpen recive msg handler
+func (s *Session) ProcessOpen(data []byte) {
+	logrus.WithFields(logrus.Fields{
+		"type": "open",
+		"peer": s.Conn.RemoteAddr().String(),
+	}).Info("new msg")
 	h, err := parseCommonObjectHeader(data)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
@@ -106,8 +122,7 @@ func (s *Session) RcvSessionOpen(data []byte) {
 		}).Error(err)
 		return
 	}
-	go s.HandleKeepAlive()
-	s.SendSessionOpen()
+
 }
 
 //SendSessionOpen send OPEN msg handler
@@ -166,18 +181,21 @@ func (s *Session) SendSessionOpen() {
 		"type":  "info",
 		"event": "open",
 	}).Info(fmt.Sprintf("Sent Open: %d byte", i))
-	s.State = 2
-	s.SendKeepAlive()
 }
 
-//SendKeepAlive start sending keep alive msgs
-func (s *Session) SendKeepAlive() {
-	commH := []byte{
-		0: 32,
-		1: 2,
-		2: 0,
-		3: 4,
+//StartKeepAlive start sending keep alive msgs
+func (s *Session) StartKeepAlive() {
+	// message-Type (8 bits): set to 2 means keepalive
+	// length is set to zero as only common header itself is going to be sent
+	commH, err := newCommonHeader(2, 0)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"topic": "common header creation failure",
+			"peer":  s.Conn.RemoteAddr().String(),
+		}).Error(err)
+		return
 	}
+
 	var firstSent bool
 	for {
 		logrus.WithFields(logrus.Fields{
@@ -208,8 +226,8 @@ func (s *Session) SendKeepAlive() {
 	}
 }
 
-//HandleKeepAlive start sending keep alive msgs
-func (s *Session) HandleKeepAlive() {
+//HandleDeadTimer start dead timer and wait for keepalive
+func (s *Session) HandleDeadTimer() {
 	for {
 		select {
 		case res := <-s.RcvKA:
@@ -252,18 +270,6 @@ func (s *Session) HandleKeepAlive() {
 	}
 }
 
-//NewSession aa
-func NewSession(conn net.Conn) *Session {
-	return &Session{
-		Conn:         conn,
-		StopKA:       make(chan struct{}),
-		RcvKA:        make(chan bool),
-		Keepalive:    30,
-		PLSPIDToName: make(map[uint32]string),
-		LSPs:         make(map[string]*LSP),
-	}
-}
-
 // HandleNewMsg handles incoming data
 func (s *Session) HandleNewMsg(data []byte) {
 	var (
@@ -283,17 +289,18 @@ func (s *Session) HandleNewMsg(data []byte) {
 		newOffset = newOffset + ch.MessageLength
 		switch {
 		case ch.MessageType == 1:
-			logrus.WithFields(logrus.Fields{
-				"type": "open",
-				"peer": s.Conn.RemoteAddr().String(),
-			}).Info("new msg")
-			go s.RcvSessionOpen(data[offset+4:])
+			s.ProcessOpen(data[offset+4:])
+			s.SendSessionOpen()
+
+			s.State = 2
+
+			go s.StartKeepAlive()
+			go s.HandleDeadTimer()
+
 		case ch.MessageType == 2:
-			logrus.WithFields(logrus.Fields{
-				"type": "keepalive",
-				"peer": s.Conn.RemoteAddr().String(),
-			}).Info("rcv new msg")
-			// s.RcvKA <- true
+			logrus.WithFields(logrus.Fields{"type": "keepalive", "peer": s.Conn.RemoteAddr().String()}).Info("rcv new msg")
+
+			s.RcvKA <- true
 
 			if s.State == 2 {
 				if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
@@ -368,105 +375,5 @@ func (s *Session) HandleNewMsg(data []byte) {
 		default:
 			log.Println("Unknown msg received")
 		}
-	}
-	// printAsJSON(s)func (s *Session) HandleNewMsg(data []byte) {
-}
-
-func getLSPS() []*SRLSP {
-	return []*SRLSP{
-		{
-			Delegate: true,
-			Sync:     false,
-			Remove:   false,
-			Admin:    true,
-			Name:     "LSP-55",
-			Src:      "10.10.10.10",
-			Dst:      "14.14.14.14",
-			EROList: []SREROSub{
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         3,
-					IPv4NodeID: "",
-					SID:        402011,
-					NoSID:      false,
-					IPv4Adjacency: []string{
-						0: "10.1.0.1",
-						1: "10.1.0.0",
-					},
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "15.15.15.15",
-					SID:        402015,
-					NoSID:      false,
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "14.14.14.14",
-					SID:        402014,
-					NoSID:      false,
-				},
-			},
-			SetupPrio:    7,
-			HoldPrio:     7,
-			LocalProtect: false,
-			BW:           100,
-		},
-		{
-			Delegate: true,
-			Sync:     false,
-			Remove:   false,
-			Admin:    true,
-			Name:     "LSP-66",
-			Src:      "10.10.10.10",
-			Dst:      "13.13.13.13",
-			EROList: []SREROSub{
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         3,
-					IPv4NodeID: "",
-					SID:        402011,
-					NoSID:      false,
-					IPv4Adjacency: []string{
-						0: "10.1.0.1",
-						1: "10.1.0.0",
-					},
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "15.15.15.15",
-					SID:        402015,
-					NoSID:      false,
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "14.14.14.14",
-					SID:        402014,
-					NoSID:      false,
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "13.13.13.13",
-					SID:        402013,
-					NoSID:      false,
-				},
-			},
-			SetupPrio:    7,
-			HoldPrio:     7,
-			LocalProtect: false,
-			BW:           100,
-		},
 	}
 }
