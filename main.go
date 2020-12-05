@@ -32,6 +32,7 @@ func startPCEPSession(conn net.Conn, gAPI *grpcapi.GRPCAPI) {
 		l, err := conn.Read(buff)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
+				"topic":       "conn read error",
 				"remote_addr": conn.RemoteAddr().String(),
 			}).Error(err)
 			close(session.StopKA)
