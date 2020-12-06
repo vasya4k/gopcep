@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -303,31 +302,10 @@ func (s *Session) HandleNewMsg(data []byte) {
 			s.RcvKA <- true
 
 			if s.State == 2 {
-				if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
-					logrus.WithFields(logrus.Fields{
-						"type": "before",
-						"func": "InitSRLSP",
-					}).Info("new msg")
-					for _, lsp := range getLSPS() {
-						err := s.InitSRLSP(lsp)
-						if err != nil {
-							fmt.Println(err)
-						}
-						logrus.WithFields(logrus.Fields{
-							"type": "lsp_provision",
-							"func": "InitSRLSP",
-							"src":  lsp.Src,
-							"dst":  lsp.Dst,
-						}).Info("new lsp provisioned")
-					}
-
-					logrus.WithFields(logrus.Fields{
-						"type": "after",
-						"func": "InitSRLSP",
-					}).Info("new msg")
-					s.State = 3
-				}
+				s.InitSRLSPs()
 			}
+			s.State = 3
+
 		case ch.MessageType == 3:
 			log.Println("recv path computation request ")
 		case ch.MessageType == 4:

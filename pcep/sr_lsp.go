@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/bits"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -24,6 +25,34 @@ type SRLSP struct {
 	HoldPrio     uint8
 	LocalProtect bool
 	BW           uint32
+}
+
+// InitSRLSPs aaaa
+func (s *Session) InitSRLSPs() error {
+	if strings.Split(s.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
+		logrus.WithFields(logrus.Fields{
+			"type": "before",
+			"func": "InitSRLSP",
+		}).Info("new msg")
+		for _, lsp := range getLSPS() {
+			err := s.InitSRLSP(lsp)
+			if err != nil {
+				fmt.Println(err)
+			}
+			logrus.WithFields(logrus.Fields{
+				"type": "lsp_provision",
+				"func": "InitSRLSP",
+				"src":  lsp.Src,
+				"dst":  lsp.Dst,
+			}).Info("new lsp provisioned")
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"type": "after",
+			"func": "InitSRLSP",
+		}).Info("new msg")
+	}
+	return nil
 }
 
 // InitSRLSP aaaa
