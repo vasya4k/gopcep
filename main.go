@@ -1,6 +1,7 @@
 package main
 
 import (
+	"gopcep/controller"
 	"gopcep/grpcapi"
 	"gopcep/pcep"
 	"log"
@@ -12,9 +13,9 @@ import (
 
 const msgTooShortErr = "recived msg is too short to be able to parse common header "
 
-func startPCEPSession(conn net.Conn, gAPI *grpcapi.GRPCAPI) {
+func startPCEPSession(conn net.Conn, controller *controller.Controller) {
 	session := pcep.NewSession(conn)
-	gAPI.StorePSessions(conn.RemoteAddr().String(), session)
+	controller.StorePSessions(conn.RemoteAddr().String(), session)
 
 	defer func() {
 		err := conn.Close()
@@ -24,7 +25,7 @@ func startPCEPSession(conn net.Conn, gAPI *grpcapi.GRPCAPI) {
 				"remote_addr": conn.RemoteAddr().String(),
 			}).Error(err)
 		}
-		gAPI.DeletePSessions(conn.RemoteAddr().String())
+		controller.DeletePSession(conn.RemoteAddr().String())
 	}()
 
 	buff := make([]byte, 1024)
@@ -56,12 +57,18 @@ func main() {
 		DisableColors: false,
 		FullTimestamp: true,
 	})
+
 	ln, err := net.Listen("tcp", "192.168.1.14:4189")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	gAPI := grpcapi.Start(&grpcapi.Config{Address: "127.0.0.1", Port: "12345"})
+	controller := controller.Start()
+
+	grpcapi.Start(&grpcapi.Config{
+		Address: "127.0.0.1",
+		Port:    "12345",
+	}, controller)
 
 	for {
 		conn, err := ln.Accept()
@@ -71,9 +78,11 @@ func main() {
 		if remoteIPFiltered(conn, []string{"10.0.0.10"}) {
 			continue
 		}
+
 		logrus.WithFields(logrus.Fields{
 			"remote_addr": conn.RemoteAddr().String(),
 		}).Info("new connection")
-		go startPCEPSession(conn, gAPI)
+
+		go startPCEPSession(conn, controller)
 	}
 }
