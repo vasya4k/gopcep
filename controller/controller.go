@@ -74,16 +74,24 @@ func (c *Controller) watchSession(session *pcep.Session) {
 	for {
 		select {
 		case <-session.SessionReady:
-			fmt.Println("Session is ready", session.Conn.RemoteAddr().String())
-
+			logrus.WithFields(logrus.Fields{
+				"type":           "session",
+				"event":          "ready",
+				"router_address": session.Conn.RemoteAddr().String(),
+			}).Info("new session is ready")
+			c.InitSRLSPs(session)
 		case <-session.SessionClosed:
-			fmt.Println("Session is closed", session.Conn.RemoteAddr().String())
+			logrus.WithFields(logrus.Fields{
+				"type":           "session",
+				"event":          "closed",
+				"router_address": session.Conn.RemoteAddr().String(),
+			}).Info("session closed")
 		}
 	}
 }
 
 // InitSRLSPs aaaa
-func (c *Controller) InitSRLSPs(routerName string, session *pcep.Session) error {
+func (c *Controller) InitSRLSPs(session *pcep.Session) error {
 	if strings.Split(session.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
 		logrus.WithFields(logrus.Fields{
 			"type": "before",
