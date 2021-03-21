@@ -65,7 +65,6 @@ func Start() *Controller {
 					"event":          "created",
 					"router_address": s.Conn.RemoteAddr().String(),
 				}).Info("new session created")
-				c.InitSRLSPs(s)
 				go c.watchSession(s)
 			}
 		}

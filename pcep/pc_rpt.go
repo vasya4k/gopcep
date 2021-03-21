@@ -145,5 +145,6 @@ func (s Session) HandlePCRpt(data []byte) {
 		}).Info("found lsp with no id skipping")
 		return
 	}
+	printAsJSON(lsp)
 	s.saveUpdLSP(&lsp)
 }
