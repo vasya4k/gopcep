@@ -176,7 +176,7 @@ func (s *Session) SendSessionOpen() {
 	packet = append(packet, open...)
 	packet = append(packet, stCap...)
 	packet = append(packet, srCap...)
-	// fmt.Printf("Sending open %08b \n", packet)
+
 	i, err := s.Conn.Write(packet)
 	if err != nil {
 		log.Println(err)

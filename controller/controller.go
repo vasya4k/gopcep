@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"gopcep/pcep"
 	"strings"
 	"sync"
@@ -61,7 +60,12 @@ func Start() *Controller {
 		for {
 			select {
 			case s := <-c.NewSession:
-				fmt.Println("New session in controller", s)
+				logrus.WithFields(logrus.Fields{
+					"type":           "session",
+					"event":          "created",
+					"router_address": s.Conn.RemoteAddr().String(),
+				}).Info("new session created")
+				c.InitSRLSPs(s)
 				go c.watchSession(s)
 			}
 		}
@@ -100,7 +104,10 @@ func (c *Controller) InitSRLSPs(session *pcep.Session) error {
 		for _, lsp := range getLSPS() {
 			err := session.InitSRLSP(lsp)
 			if err != nil {
-				fmt.Println(err)
+				logrus.WithFields(logrus.Fields{
+					"type":  "session",
+					"event": "lsp_init",
+				}).Error(err)
 			}
 			logrus.WithFields(logrus.Fields{
 				"type": "lsp_provision",

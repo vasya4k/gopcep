@@ -67,7 +67,7 @@ func (s *Session) InitSRLSP(l *SRLSP) error {
 	logrus.WithFields(logrus.Fields{
 		"type":  "info",
 		"event": "Initiate Request",
-	}).Info(fmt.Sprintf("Sent LSP Initiate Request: %d byte", i))
+	}).Info(fmt.Sprintf("sent LSP Initiate Request: %d byte", i))
 	return nil
 }
 

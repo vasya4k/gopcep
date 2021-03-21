@@ -22,7 +22,6 @@ type SRRROSub struct {
 
 // https://tools.ietf.org/html/draft-ietf-pce-segment-routing-14#section-5.4
 func parseRRO(data []byte) ([]*SRRROSub, error) {
-	// fmt.Printf("After Int %08b \n", data)
 	eros := make([]*SRRROSub, 0)
 	var offset int
 	for (len(data) - offset) > 4 {

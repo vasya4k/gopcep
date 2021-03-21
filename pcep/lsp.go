@@ -28,7 +28,11 @@ func (s *Session) InitLSP(l *LSP) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("ero %d bin string %08b \n", len(ero), ero)
+	logrus.WithFields(logrus.Fields{
+		"type":  "session",
+		"event": "create_ero",
+	}).Infof("ero %d bin string %08b \n", len(ero), ero)
+
 	lspa, err := newLSPAObject(l.SetupPrio, l.HoldPrio, l.LocalProtect)
 	if err != nil {
 		return err
@@ -47,7 +51,10 @@ func (s *Session) InitLSP(l *LSP) error {
 	if err != nil {
 		log.Println(err)
 	}
-	log.Printf("Sent LSP Initiate Request: %d byte", i)
+	logrus.WithFields(logrus.Fields{
+		"type":  "session",
+		"event": "sent lsp init request",
+	}).Infof("sent LSP initiate Request: %d byte", i)
 	return nil
 }
 
