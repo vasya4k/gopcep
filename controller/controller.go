@@ -40,6 +40,16 @@ func (c *Controller) StorePSessions(key string, value *pcep.Session) *pcep.Sessi
 	return value
 }
 
+// SessionStart aa
+func (c *Controller) SessionStart(value *pcep.Session) {
+	c.StorePSessions(value.Conn.RemoteAddr().String(), value)
+}
+
+// SessionEnd aa
+func (c *Controller) SessionEnd(key string) {
+	c.DeletePSession(key)
+}
+
 // Start  aa
 func Start() *Controller {
 	c := &Controller{

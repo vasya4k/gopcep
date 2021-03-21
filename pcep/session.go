@@ -364,13 +364,13 @@ func (s *Session) HandleNewMsg(data []byte) {
 }
 
 type Controller interface {
-	StorePSessions(string, *Session) *Session
-	DeletePSession(string)
+	SessionStart(*Session)
+	SessionEnd(string)
 }
 
 func startPCEPSession(conn net.Conn, controller Controller) {
 	session := NewSession(conn)
-	controller.StorePSessions(conn.RemoteAddr().String(), session)
+	controller.SessionStart(session)
 
 	defer func() {
 		err := conn.Close()
@@ -380,7 +380,7 @@ func startPCEPSession(conn net.Conn, controller Controller) {
 				"remote_addr": conn.RemoteAddr().String(),
 			}).Error(err)
 		}
-		controller.DeletePSession(conn.RemoteAddr().String())
+		controller.SessionEnd(conn.RemoteAddr().String())
 	}()
 
 	buff := make([]byte, 1024)
@@ -417,7 +417,7 @@ func ListenForNewSession(controller Controller) {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		if remoteIPFiltered(conn, []string{"10.0.0.10"}) {
+		if remoteIPFiltered(conn, []string{"10.0.0.11"}) {
 			continue
 		}
 
