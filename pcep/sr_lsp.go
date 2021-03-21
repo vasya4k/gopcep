@@ -398,7 +398,7 @@ func newSREROSubObject(ero SREROSub) ([]byte, error) {
 	case 4:
 		return nil, errors.New("IPv6 Adjacency not implemented yet")
 	case 5:
-		return nil, errors.New("Unnumbered Adjacency with IPv4 NodeIDs not implemented yet")
+		return nil, errors.New("unnumbered adjacency with IPv4 NodeIDs not implemented yet")
 	default:
 		return nil, errors.New("NAI Type not defined in RFC")
 	}

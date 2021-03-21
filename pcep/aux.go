@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const uintToBoolErr = "Bool value is not 1 or zero"
+const uintToBoolErr = "bool value is not 1 or zero"
 
 func uintToBool(i uint) (bool, error) {
 	if i == 0 {
