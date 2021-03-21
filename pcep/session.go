@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -11,23 +12,26 @@ import (
 
 //Session holds everything for a PCEP session
 type Session struct {
-	ID           uint8
-	MsgCount     uint64
-	State        int
-	Conn         net.Conn
-	RemoteOK     bool
-	LocalOK      bool
-	Keepalive    uint8
-	DeadTimer    uint8
-	PLSPIDToName map[uint32]string
-	LSPs         map[string]*LSP
-	IDCounter    uint32
-	SRPID        uint32
-	StopKA       chan struct{} `json:"-"`
-	RcvKA        chan bool     `json:"-"`
-	SRCap        *SRPCECap
-	StatefulCap  *StatefulPCECapability
-	Open         *OpenObject
+	ID                uint8
+	MsgCount          uint64
+	State             int
+	Conn              net.Conn
+	RemoteOK          bool
+	LocalOK           bool
+	Keepalive         uint8
+	DeadTimer         uint8
+	PLSPIDToName      map[uint32]string
+	LSPs              map[string]*LSP
+	IDCounter         uint32
+	SRPID             uint32
+	StopKA            chan struct{} `json:"-"`
+	RcvKA             chan bool     `json:"-"`
+	SRCap             *SRPCECap
+	StatefulCap       *StatefulPCECapability
+	Open              *OpenObject
+	SessionReady      chan bool `json:"-"`
+	SessionClosed     chan bool `json:"-"`
+	SessionErrRecived chan bool `json:"-"`
 }
 
 //NewSession creates a new session with defaults
@@ -39,6 +43,7 @@ func NewSession(conn net.Conn) *Session {
 		Keepalive:    30,
 		PLSPIDToName: make(map[uint32]string),
 		LSPs:         make(map[string]*LSP),
+		SessionReady: make(chan bool),
 	}
 }
 
@@ -292,17 +297,19 @@ func (s *Session) HandleNewMsg(data []byte) {
 			s.SendSessionOpen()
 
 			s.State = 2
-
 			go s.StartKeepAlive()
 			go s.HandleDeadTimer()
 
 		case ch.MessageType == 2:
-			logrus.WithFields(logrus.Fields{"type": "keepalive", "peer": s.Conn.RemoteAddr().String()}).Info("rcv new msg")
+			logrus.WithFields(logrus.Fields{
+				"type": "keepalive",
+				"peer": s.Conn.RemoteAddr().String(),
+			}).Info("rcv new msg")
 
 			s.RcvKA <- true
 
 			if s.State == 2 {
-				s.InitSRLSPs()
+				s.SessionReady <- true
 			}
 			s.State = 3
 
@@ -354,4 +361,71 @@ func (s *Session) HandleNewMsg(data []byte) {
 			log.Println("Unknown msg received")
 		}
 	}
+}
+
+type Controller interface {
+	StorePSessions(string, *Session) *Session
+	DeletePSession(string)
+}
+
+func startPCEPSession(conn net.Conn, controller Controller) {
+	session := NewSession(conn)
+	controller.StorePSessions(conn.RemoteAddr().String(), session)
+
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"topic":       "closing connection",
+				"remote_addr": conn.RemoteAddr().String(),
+			}).Error(err)
+		}
+		controller.DeletePSession(conn.RemoteAddr().String())
+	}()
+
+	buff := make([]byte, 1024)
+	for {
+		l, err := conn.Read(buff)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"topic":       "conn read error",
+				"remote_addr": conn.RemoteAddr().String(),
+			}).Error(err)
+			close(session.StopKA)
+			return
+		}
+		session.HandleNewMsg(buff[:l])
+	}
+}
+
+func remoteIPFiltered(conn net.Conn, filteredIPs []string) bool {
+	for _, ip := range filteredIPs {
+		if strings.Split(conn.RemoteAddr().String(), ":")[0] == ip {
+			return true
+		}
+	}
+	return false
+}
+
+func ListenForNewSession(controller Controller) {
+	ln, err := net.Listen("tcp", "192.168.1.14:4189")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if remoteIPFiltered(conn, []string{"10.0.0.10"}) {
+			continue
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"remote_addr": conn.RemoteAddr().String(),
+		}).Info("new connection")
+
+		go startPCEPSession(conn, controller)
+	}
+
 }

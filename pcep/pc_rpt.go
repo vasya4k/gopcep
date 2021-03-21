@@ -145,10 +145,5 @@ func (s Session) HandlePCRpt(data []byte) {
 		}).Info("found lsp with no id skipping")
 		return
 	}
-	printAsJSON(lsp)
-	logrus.WithFields(logrus.Fields{
-		"type": "after",
-		"func": "printAsJSON",
-	}).Info("new msg")
 	s.saveUpdLSP(&lsp)
 }
