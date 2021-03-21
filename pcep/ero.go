@@ -49,9 +49,9 @@ func parseERO(data []byte) ([]*SREROSub, error) {
 				return nil, err
 			}
 		}
-		sid := binary.BigEndian.Uint32(data[offset+4 : offset+8])
+		e.SID = binary.BigEndian.Uint32(data[offset+4 : offset+8])
 		if e.MBit {
-			sid = sid >> 12
+			e.SID = e.SID >> 12
 		}
 		err = parseNAI(data[offset+8:], &e)
 		if err != nil {
