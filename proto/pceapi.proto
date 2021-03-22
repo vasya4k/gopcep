@@ -10,12 +10,10 @@ package pceapiproto;
 
 // The greeting service definition.
 service PCE {
-  // Sends a greeting
   rpc GetSessions (SessionsRequest) returns (SessionsReply) {}
+  rpc GetLSPs (LSPRequest) returns (LSPReply) {}
 }
 
-
-// The request message containing the user's name.
 message SessionsRequest {
   string pccName  = 1;
 }
@@ -29,9 +27,40 @@ message Session {
 	uint32 DeadTimer = 6;    
 }
 
-// The response message containing the greetings
 message SessionsReply {
   repeated Session sessions = 1;
-
 }
 
+message LSPRequest {
+  string pccName  = 1;
+}
+
+message LSP {
+	bool Delegate       = 1;     
+	bool Sync           = 2;     
+	bool Remove         = 3;     
+	bool Admin          = 4;     
+	uint32 Oper         = 5; 
+	string Name         = 6;      
+	string Src          = 7;      
+	string Dst          = 8;      
+	// EROList      []EROSub
+	// SREROList    []*SREROSub
+	// SRRROList    []*SRRROSub
+	uint32 SetupPrio    = 9;    
+	uint32 HoldPrio     = 10;    
+	bool   LocalProtect = 11; 
+	uint32 BW           = 12;   
+	uint32 PLSPID       = 13;   
+	uint32 LSPID        = 14;  
+	// IPv4ID       *LSPIPv4Identifiers
+	// IPv6ID       *LSPIPv6Identifiers
+	uint32 SRPID        = 15;   
+	uint32 ExcludeAny   = 16;   
+	uint32 IncludeAny   = 17;   
+	uint32 IncludeAll   = 18;   
+}
+
+message LSPReply {
+  repeated LSP LSPs = 1;
+}
