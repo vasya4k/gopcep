@@ -18,7 +18,7 @@ type GRPCAPI struct {
 	pb.PCEServer
 }
 
-// GetSessions implements helloworld.GreeterServer
+// GetSessions aa
 func (g *GRPCAPI) GetSessions(ctx context.Context, in *pb.SessionsRequest) (*pb.SessionsReply, error) {
 	g.RLock()
 	pbSessions := make([]*pb.Session, 0)
@@ -33,6 +33,37 @@ func (g *GRPCAPI) GetSessions(ctx context.Context, in *pb.SessionsRequest) (*pb.
 		})
 	}
 	return &pb.SessionsReply{Sessions: pbSessions}, nil
+}
+
+// GetLSPs implements helloworld.GreeterServer
+func (g *GRPCAPI) GetLSPs(ctx context.Context, in *pb.LSPRequest) (*pb.LSPReply, error) {
+	g.RLock()
+	pbLSPs := make([]*pb.LSP, 0)
+	session := g.ctr.PCEPSessions[in.PccName]
+
+	for _, lsp := range session.LSPs {
+		pbLSPs = append(pbLSPs, &pb.LSP{
+			Delegate:     lsp.Delegate,
+			Sync:         lsp.Sync,
+			Remove:       lsp.Remove,
+			Admin:        lsp.Admin,
+			Oper:         uint32(lsp.Oper),
+			Name:         lsp.Name,
+			Src:          lsp.Src,
+			Dst:          lsp.Dst,
+			SetupPrio:    uint32(lsp.SetupPrio),
+			HoldPrio:     uint32(lsp.HoldPrio),
+			LocalProtect: lsp.LocalProtect,
+			BW:           lsp.BW,
+			PLSPID:       lsp.PLSPID,
+			LSPID:        uint32(lsp.LSPID),
+			SRPID:        lsp.SRPID,
+			ExcludeAny:   lsp.ExcludeAny,
+			IncludeAny:   lsp.IncludeAny,
+			IncludeAll:   lsp.IncludeAll,
+		})
+	}
+	return &pb.LSPReply{LSPs: pbLSPs}, nil
 }
 
 // Config represents GRPC Config
