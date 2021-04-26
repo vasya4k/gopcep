@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"fmt"
 	"gopcep/pcep"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -13,6 +15,7 @@ type Controller struct {
 	sync.RWMutex
 	PCEPSessions map[string]*pcep.Session
 	NewSession   chan *pcep.Session
+	TopoView     *TopoView
 }
 
 // LoadPSessions aa
@@ -54,7 +57,10 @@ func Start() *Controller {
 	c := &Controller{
 		PCEPSessions: make(map[string]*pcep.Session),
 		NewSession:   make(chan *pcep.Session),
+		TopoView:     NewTopoView(),
 	}
+
+	go startBGPLS(c.TopoView)
 
 	go func() {
 		for {
@@ -94,7 +100,52 @@ func (c *Controller) watchSession(session *pcep.Session) {
 }
 
 // InitSRLSPs aaaa
-func (c *Controller) InitSRLSPs(session *pcep.Session) error {
+func (c *Controller) InitSRLSPs(session *pcep.Session) {
+	start := time.Now()
+	for srcNode := range c.TopoView.NodesByIGPRouteID {
+		for dstNode := range c.TopoView.NodesByIGPRouteID {
+			if srcNode != dstNode {
+				c.TopoView.FindAllPaths(srcNode, dstNode)
+			}
+		}
+	}
+	logrus.Printf("topo calc took %s", time.Since(start))
+	srcAddr := strings.Split(session.Conn.RemoteAddr().String(), ":")[0]
+	allDestinations := []string{"0192.0168.0014", "0192.0168.0011"}
+
+	for _, dst := range allDestinations {
+		bestPath := c.TopoView.findBestPath(0, srcAddr, dst)
+		if bestPath == nil {
+			continue
+		}
+		lsp, err := c.TopoView.createSRLSP(100, bestPath)
+		if err != nil {
+			fmt.Println(err)
+		}
+		err = session.InitSRLSP(lsp)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type":  "session",
+				"event": "lsp_init",
+			}).Error(err)
+		}
+		logrus.WithFields(logrus.Fields{
+			"type": "lsp_provision",
+			"func": "InitSRLSP",
+			"src":  lsp.Src,
+			"dst":  lsp.Dst,
+		}).Info("new lsp provisioned")
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"type": "after",
+		"func": "InitSRLSP",
+	}).Info("new msg")
+
+}
+
+// InitSRLSPs aaaa
+func (c *Controller) InitSRLSPsDebug(session *pcep.Session) error {
 	if strings.Split(session.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
 		logrus.WithFields(logrus.Fields{
 			"type": "before",
