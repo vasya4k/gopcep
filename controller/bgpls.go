@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gopcep/pcep"
+	"strings"
 
 	"github.com/golang/protobuf/ptypes"
 	api "github.com/osrg/gobgp/api"
@@ -56,6 +57,7 @@ type TopoView struct {
 	LinksByIGPRouteID  []*Link
 	PrefixByIGPRouteID map[string]*Prefix
 	Paths              map[string][]*Path
+	TopologyUpdate     chan bool `json:"-"`
 }
 
 type PathID struct {
@@ -77,6 +79,7 @@ func NewTopoView() *TopoView {
 		LinksByIGPRouteID:  make([]*Link, 0),
 		PrefixByIGPRouteID: make(map[string]*Prefix),
 		Paths:              make(map[string][]*Path),
+		TopologyUpdate:     make(chan bool),
 	}
 }
 
@@ -251,7 +254,19 @@ func (t *TopoView) Monitor(p *api.Path) {
 		t.HandlePrefixV4NLRI(lsMessage.Nlri, p)
 	default:
 		logrus.Printf("uknown NLRI type: %d\n", lsMessage.Type)
+		return
 	}
+	logrus.WithFields(logrus.Fields{
+		"type":  "bgp",
+		"event": "rcv_nlri",
+		"nlri":  lsMessage,
+	}).Info("recived NLRI")
+	t.TopologyUpdate <- true
+	logrus.WithFields(logrus.Fields{
+		"type":  "bgp",
+		"event": "sent_topo_update",
+		"nlri":  lsMessage,
+	}).Info("sent topology update into channel")
 }
 
 func (t *TopoView) findBestPath(bwNeeded int, src, dst string) *Path {
@@ -291,19 +306,31 @@ func (t *TopoView) getSIDByIGPRouterID(routerID string) (uint32, error) {
 }
 
 func (t *TopoView) createSRLSP(bw uint32, path *Path) (*pcep.SRLSP, error) {
-	printAsJSON(path)
+	// printAsJSON(path)
 	if len(path.Links) == 0 {
 		return nil, fmt.Errorf("not links found in path")
 	}
+
+	srcPrefix, ok := t.PrefixByIGPRouteID[path.Src]
+	if !ok {
+		return nil, fmt.Errorf("src prefix not found for IGPID %s", path.Src)
+	}
+	dstPrefix, ok := t.PrefixByIGPRouteID[path.Dst]
+	if !ok {
+		return nil, fmt.Errorf("dst prefix not found for IGPID %s", path.Dst)
+	}
+
+	lspSrc := strings.Split(srcPrefix.Prefix, "/")[0]
+	lspDst := strings.Split(dstPrefix.Prefix, "/")[0]
 
 	lsp := &pcep.SRLSP{
 		Delegate:     true,
 		Sync:         false,
 		Remove:       false,
 		Admin:        true,
-		Name:         "LSP-" + path.Src + "-" + path.Dst,
-		Src:          path.Src,
-		Dst:          path.Dst,
+		Name:         "LSP-" + lspSrc + "-" + lspDst,
+		Src:          lspSrc,
+		Dst:          lspDst,
 		SetupPrio:    7,
 		HoldPrio:     7,
 		LocalProtect: false,
@@ -331,11 +358,15 @@ func (t *TopoView) createSRLSP(bw uint32, path *Path) (*pcep.SRLSP, error) {
 			})
 			continue
 		}
+		nodePrefix, ok := t.PrefixByIGPRouteID[link.LocalNode]
+		if !ok {
+			return nil, fmt.Errorf("node prefix not found for IGPID %s", link.LocalNode)
+		}
 		lsp.EROList = append(lsp.EROList, pcep.SREROSub{
 			LooseHop:   false,
 			MBit:       true,
 			NT:         1,
-			IPv4NodeID: link.LocalNode,
+			IPv4NodeID: strings.Split(nodePrefix.Prefix, "/")[0],
 			SID:        SID,
 			NoSID:      false,
 		})

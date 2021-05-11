@@ -398,29 +398,45 @@ func startPCEPSession(conn net.Conn, controller Controller) {
 	}
 }
 
-func remoteIPFiltered(conn net.Conn, filteredIPs []string) bool {
-	for _, ip := range filteredIPs {
+func clientNotInConfig(conn net.Conn, cfg *Cfg) bool {
+	for _, ip := range cfg.PCClients {
 		if strings.Split(conn.RemoteAddr().String(), ":")[0] == ip {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
 
-func ListenForNewSession(controller Controller) {
-	ln, err := net.Listen("tcp", "192.168.1.14:4189")
+type Cfg struct {
+	ListenAddr string
+	ListenPort string
+	Keepalive  uint8
+	PCClients  []string
+}
+
+func ListenForNewSession(controller Controller, cfg *Cfg) error {
+	ln, err := net.Listen("tcp", cfg.ListenAddr+":"+cfg.ListenPort)
 	if err != nil {
-		log.Fatalln(err)
+		logrus.WithFields(logrus.Fields{
+			"topic":     "listen",
+			"event":     "net listen error",
+			"addr_port": cfg.ListenAddr + ":" + cfg.ListenPort,
+		}).Error(err)
+		return err
 	}
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Fatalln(err)
+			logrus.WithFields(logrus.Fields{
+				"topic":     "accept",
+				"event":     "accept error",
+				"addr_port": cfg.ListenAddr + ":" + cfg.ListenPort,
+			}).Error(err)
+			return err
 		}
-		if remoteIPFiltered(conn, []string{"10.0.0.11"}) {
+		if clientNotInConfig(conn, cfg) {
 			continue
 		}
-
 		logrus.WithFields(logrus.Fields{
 			"remote_addr": conn.RemoteAddr().String(),
 		}).Info("new connection")

@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"gopcep/pcep"
 	"strings"
 	"sync"
@@ -16,6 +15,13 @@ type Controller struct {
 	PCEPSessions map[string]*pcep.Session
 	NewSession   chan *pcep.Session
 	TopoView     *TopoView
+	// Tthe list of LSPs is maintained by the controller and
+	// inside PCEP libriry as well. if I just use one list in
+	// PCEP then the controller does not know we created an LSP
+	// and can try to create the same one before we recive RPT
+	// from the router.
+	// I am not sure if PCEP lib needs a list at all
+	LSPs map[string]*pcep.SRLSP
 }
 
 // LoadPSessions aa
@@ -58,6 +64,7 @@ func Start() *Controller {
 		PCEPSessions: make(map[string]*pcep.Session),
 		NewSession:   make(chan *pcep.Session),
 		TopoView:     NewTopoView(),
+		LSPs:         make(map[string]*pcep.SRLSP),
 	}
 
 	go startBGPLS(c.TopoView)
@@ -72,6 +79,14 @@ func Start() *Controller {
 					"router_address": s.Conn.RemoteAddr().String(),
 				}).Info("new session created")
 				go c.watchSession(s)
+			case <-c.TopoView.TopologyUpdate:
+				logrus.WithFields(logrus.Fields{
+					"type":  "topology",
+					"event": "update",
+				}).Info("new topology update running LSP optimisation")
+				for _, session := range c.PCEPSessions {
+					c.InitSRLSPs(session)
+				}
 			}
 		}
 	}()
@@ -110,18 +125,66 @@ func (c *Controller) InitSRLSPs(session *pcep.Session) {
 		}
 	}
 	logrus.Printf("topo calc took %s", time.Since(start))
-	srcAddr := strings.Split(session.Conn.RemoteAddr().String(), ":")[0]
+	sessionSrcAddr := strings.Split(session.Conn.RemoteAddr().String(), ":")[0]
+
 	allDestinations := []string{"0192.0168.0014", "0192.0168.0011"}
+
+	pcepSrctoIGPSrcMapping := map[string]string{"10.0.0.10": "0100.1001.0010"}
+
+	srcAddr := pcepSrctoIGPSrcMapping[sessionSrcAddr]
+
+	logrus.WithFields(logrus.Fields{
+		"type":        "lsp_init",
+		"event":       "best_path_calc",
+		"src_address": srcAddr,
+		"dsts":        allDestinations,
+		"paths": func() []string {
+			keys := make([]string, len(c.TopoView.Paths))
+			i := 0
+			for k := range c.TopoView.Paths {
+				keys[i] = k
+				i++
+			}
+			return keys
+		}(),
+	}).Info("looking for best paths for all destinations")
 
 	for _, dst := range allDestinations {
 		bestPath := c.TopoView.findBestPath(0, srcAddr, dst)
 		if bestPath == nil {
 			continue
 		}
+		logrus.WithFields(logrus.Fields{
+			"type":        "lsp_init",
+			"event":       "best_path_found",
+			"src_address": srcAddr,
+			"dss":         dst,
+			"path":        bestPath,
+		}).Info("looking for best paths for all destinations")
+
 		lsp, err := c.TopoView.createSRLSP(100, bestPath)
 		if err != nil {
-			fmt.Println(err)
+			logrus.WithFields(logrus.Fields{
+				"type":  "session",
+				"event": "create_lsp",
+			}).Error(err)
+			continue
 		}
+		// this needs to be turned into proper comparation of LSPs
+		// so if the new LSP is the same no point touching it
+		_, ok := c.LSPs[lsp.Name]
+		if ok {
+			continue
+		}
+
+		printAsJSON(c.TopoView.PrefixByIGPRouteID)
+		logrus.WithFields(logrus.Fields{
+			"type":        "lsp_init",
+			"event":       "lsp_created",
+			"src_address": srcAddr,
+			"dss":         dst,
+			"lsp":         lsp,
+		}).Info("lsp created now running pcep init")
 		err = session.InitSRLSP(lsp)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
@@ -129,6 +192,7 @@ func (c *Controller) InitSRLSPs(session *pcep.Session) {
 				"event": "lsp_init",
 			}).Error(err)
 		}
+		c.LSPs[lsp.Name] = lsp
 		logrus.WithFields(logrus.Fields{
 			"type": "lsp_provision",
 			"func": "InitSRLSP",
@@ -142,134 +206,4 @@ func (c *Controller) InitSRLSPs(session *pcep.Session) {
 		"func": "InitSRLSP",
 	}).Info("new msg")
 
-}
-
-// InitSRLSPs aaaa
-func (c *Controller) InitSRLSPsDebug(session *pcep.Session) error {
-	if strings.Split(session.Conn.RemoteAddr().String(), ":")[0] == "10.0.0.10" {
-		logrus.WithFields(logrus.Fields{
-			"type": "before",
-			"func": "InitSRLSP",
-		}).Info("new msg")
-		for _, lsp := range getLSPS() {
-			err := session.InitSRLSP(lsp)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"type":  "session",
-					"event": "lsp_init",
-				}).Error(err)
-			}
-			logrus.WithFields(logrus.Fields{
-				"type": "lsp_provision",
-				"func": "InitSRLSP",
-				"src":  lsp.Src,
-				"dst":  lsp.Dst,
-			}).Info("new lsp provisioned")
-		}
-
-		logrus.WithFields(logrus.Fields{
-			"type": "after",
-			"func": "InitSRLSP",
-		}).Info("new msg")
-	}
-	return nil
-}
-
-func getLSPS() []*pcep.SRLSP {
-	return []*pcep.SRLSP{
-		{
-			Delegate: true,
-			Sync:     false,
-			Remove:   false,
-			Admin:    true,
-			Name:     "LSP-55",
-			Src:      "10.10.10.10",
-			Dst:      "14.14.14.14",
-			EROList: []pcep.SREROSub{
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         3,
-					IPv4NodeID: "",
-					SID:        402011,
-					NoSID:      false,
-					IPv4Adjacency: []string{
-						0: "10.1.0.1",
-						1: "10.1.0.0",
-					},
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "15.15.15.15",
-					SID:        402015,
-					NoSID:      false,
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "14.14.14.14",
-					SID:        402014,
-					NoSID:      false,
-				},
-			},
-			SetupPrio:    7,
-			HoldPrio:     7,
-			LocalProtect: false,
-			BW:           100,
-		},
-		{
-			Delegate: true,
-			Sync:     false,
-			Remove:   false,
-			Admin:    true,
-			Name:     "LSP-66",
-			Src:      "10.10.10.10",
-			Dst:      "13.13.13.13",
-			EROList: []pcep.SREROSub{
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         3,
-					IPv4NodeID: "",
-					SID:        402011,
-					NoSID:      false,
-					IPv4Adjacency: []string{
-						0: "10.1.0.1",
-						1: "10.1.0.0",
-					},
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "15.15.15.15",
-					SID:        402015,
-					NoSID:      false,
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "14.14.14.14",
-					SID:        402014,
-					NoSID:      false,
-				},
-				{
-					LooseHop:   false,
-					MBit:       true,
-					NT:         1,
-					IPv4NodeID: "13.13.13.13",
-					SID:        402013,
-					NoSID:      false,
-				},
-			},
-			SetupPrio:    7,
-			HoldPrio:     7,
-			LocalProtect: false,
-			BW:           100,
-		},
-	}
 }

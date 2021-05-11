@@ -2,13 +2,16 @@ package grpcapi
 
 import (
 	"context"
+	"crypto/tls"
 	"gopcep/controller"
 	pb "gopcep/proto"
-	"log"
 	"net"
 	"sync"
 
+	auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // GRPCAPI represents api
@@ -68,28 +71,58 @@ func (g *GRPCAPI) GetLSPs(ctx context.Context, in *pb.LSPRequest) (*pb.LSPReply,
 
 // Config represents GRPC Config
 type Config struct {
-	Address string
-	Port    string
+	ListenAddr string
+	ListenPort string
+	Tokens     []string
 }
 
-// Start aaa
-func Start(cfg *Config, controller *controller.Controller) *GRPCAPI {
+// Start gRPC API
+func Start(cfg *Config, controller *controller.Controller) error {
 	api := GRPCAPI{
 		ctr: controller,
 	}
+	cert, pool, err := GenCerts()
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"topic": "grpc_api",
+			"event": "gent certs error",
+		}).Error(err)
+		return err
+	}
+	creds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{*cert},
+		ClientCAs:    pool,
+	})
+	listener, err := net.Listen("tcp", cfg.ListenAddr+":"+cfg.ListenPort)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"topic":     "grpc_api",
+			"event":     "net listen error",
+			"addr_port": cfg.ListenAddr + ":" + cfg.ListenPort,
+		}).Error(err)
+		return err
+	}
+	token := Auth{
+		Tokens: cfg.Tokens,
+	}
+	server := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.StreamInterceptor(auth.StreamServerInterceptor(token.TokenAuth)),
+		grpc.UnaryInterceptor(auth.UnaryServerInterceptor(token.TokenAuth)),
+	)
+
+	pb.RegisterPCEServer(server, &api)
 
 	go func() {
-		lis, err := net.Listen("tcp", cfg.Address+":"+cfg.Port)
+		err = server.Serve(listener)
 		if err != nil {
-			log.Fatal(err)
-		}
-		s := grpc.NewServer()
-		pb.RegisterPCEServer(s, &api)
-		err = s.Serve(lis)
-		if err != nil {
-			log.Fatal(err)
+			logrus.WithFields(logrus.Fields{
+				"topic":     "grpc_api",
+				"event":     "serve error",
+				"addr_port": cfg.ListenAddr + ":" + cfg.ListenPort,
+			}).Fatal(err)
 		}
 	}()
 
-	return &api
+	return nil
 }

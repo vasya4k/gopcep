@@ -62,11 +62,11 @@ func ipToUnit32(ipStr string) (uint32, error) {
 	var res uint32
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		return 0, errors.New("not a valid address")
+		return 0, fmt.Errorf("not a valid address %s", ipStr)
 	}
 	ipv4 := ip.To4()
 	if ipv4 == nil {
-		return 0, errors.New("not a IPv4 address")
+		return 0, fmt.Errorf("not a valid address %s", ipStr)
 	}
 	binary.Read(bytes.NewBuffer(ipv4), binary.BigEndian, &res)
 	return res, nil
