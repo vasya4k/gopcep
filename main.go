@@ -4,14 +4,25 @@ import (
 	"gopcep/controller"
 	"gopcep/grpcapi"
 	"gopcep/pcep"
+	"os"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+	"github.com/urfave/cli/v2"
 )
+
+type logCfg struct {
+	FullTimestamp   bool
+	DisableColors   bool
+	TimestampFormat string
+	TextFormat      bool
+	LogLevel        uint32
+}
 
 type cfg struct {
 	grpcapi grpcapi.Config
 	pcep    pcep.Cfg
+	logCfg  logCfg
 }
 
 func appCfg(cfgPath string) *cfg {
@@ -40,18 +51,38 @@ func appCfg(cfgPath string) *cfg {
 			ListenPort: viper.GetString("grpcapi.listen_port"),
 			Tokens:     viper.GetStringSlice("grpcapi.tokens"),
 		},
+		logCfg: logCfg{
+			LogLevel:        viper.GetUint32("log.level"),
+			TimestampFormat: viper.GetString("log.time_format"),
+			TextFormat:      viper.GetBool("log.text_format"),
+			FullTimestamp:   viper.GetBool("log.full_timestamp"),
+			DisableColors:   viper.GetBool("log.disable_colors"),
+		},
 	}
 }
 
-func main() {
+func configureLogging(cfg logCfg) {
+	logrus.SetLevel(logrus.Level(cfg.LogLevel))
 
-	logrus.SetFormatter(&logrus.TextFormatter{
-		DisableColors:   false,
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02T15:04:05.999999999Z07:00",
+	if cfg.TextFormat {
+		logrus.SetFormatter(&logrus.TextFormatter{
+			DisableColors:   cfg.DisableColors,
+			FullTimestamp:   cfg.FullTimestamp,
+			TimestampFormat: cfg.TimestampFormat,
+		})
+		return
+	}
+	logrus.SetFormatter(&logrus.JSONFormatter{
+		TimestampFormat: cfg.TimestampFormat,
 	})
+}
 
-	cfg := appCfg(".")
+func startController(c *cli.Context) error {
+
+	cfg := appCfg(c.String("config"))
+
+	configureLogging(cfg.logCfg)
+
 	logrus.WithFields(logrus.Fields{
 		"topic":  "config",
 		"event":  "red config",
@@ -73,6 +104,30 @@ func main() {
 		logrus.WithFields(logrus.Fields{
 			"topic": "pcep",
 			"event": "ListenForNewSession error",
+		}).Fatal(err)
+	}
+	return nil
+}
+
+func main() {
+	app := &cli.App{
+		Name:    "GoPCEP",
+		Usage:   "Segment Routing Traffic Engineering Controller written in Go",
+		Version: "0.1",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "config, c",
+				Value: ".",
+				Usage: "config path",
+			},
+		},
+		Action: startController,
+	}
+	err := app.Run(os.Args)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"topic": "run",
+			"event": "failed to start",
 		}).Fatal(err)
 	}
 }

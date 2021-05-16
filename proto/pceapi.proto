@@ -8,11 +8,15 @@ option java_outer_classname = "PCEProto";
 
 package pceapiproto;
 
-// The greeting service definition.
 service PCE {
   rpc GetSessions (SessionsRequest) returns (SessionsReply) {}
   rpc GetLSPs (LSPRequest) returns (LSPReply) {}
+  rpc StopBGP (StopBGPRequest) returns (StopBGPReplay) {}
 }
+
+message StopBGPRequest {}
+
+message StopBGPReplay {}
 
 message SessionsRequest {
   string pccName  = 1;

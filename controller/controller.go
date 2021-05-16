@@ -21,7 +21,8 @@ type Controller struct {
 	// and can try to create the same one before we recive RPT
 	// from the router.
 	// I am not sure if PCEP lib needs a list at all
-	LSPs map[string]*pcep.SRLSP
+	LSPs    map[string]*pcep.SRLSP
+	StopBGP chan bool
 }
 
 // LoadPSessions aa
@@ -65,9 +66,10 @@ func Start() *Controller {
 		NewSession:   make(chan *pcep.Session),
 		TopoView:     NewTopoView(),
 		LSPs:         make(map[string]*pcep.SRLSP),
+		StopBGP:      make(chan bool),
 	}
 
-	go startBGPLS(c.TopoView)
+	go startBGPLS(c.TopoView, c.StopBGP)
 
 	go func() {
 		for {

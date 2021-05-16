@@ -59,7 +59,7 @@ func main() {
 	defer conn.Close()
 	c := pb.NewPCEClient(conn)
 
-	r, err := c.GetSessions(ctx, &pb.SessionsRequest{})
+	r, err := c.StopBGP(ctx, &pb.StopBGPRequest{})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}

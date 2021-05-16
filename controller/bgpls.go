@@ -409,18 +409,72 @@ func (t *TopoView) createSRLSP(bw uint32, path *Path) (*pcep.SRLSP, error) {
 // 	printAsJSON(topo.PrefixByIGPRouteID)
 // }
 
-func startBGPLS(topology *TopoView) {
-	logrus.SetLevel(logrus.DebugLevel)
-	s := gobgp.NewBgpServer()
-	go s.Serve()
-
-	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
-		Global: &api.Global{
-			As:         65001,
-			RouterId:   "19.19.19.19",
-			ListenPort: -1, // gobgp won't listen on tcp:179
+func getPeers() []*api.Peer {
+	return []*api.Peer{
+		{
+			Conf: &api.PeerConf{
+				NeighborAddress: "10.0.0.10",
+				PeerAs:          65000,
+			},
+			EbgpMultihop: &api.EbgpMultihop{
+				Enabled:     true,
+				MultihopTtl: 2,
+			},
+			ApplyPolicy: &api.ApplyPolicy{
+				ImportPolicy: &api.PolicyAssignment{
+					DefaultAction: api.RouteAction_ACCEPT,
+				},
+				ExportPolicy: &api.PolicyAssignment{
+					DefaultAction: api.RouteAction_REJECT,
+				},
+			},
+			AfiSafis: []*api.AfiSafi{
+				{
+					Config: &api.AfiSafiConfig{
+						Family: &api.Family{
+							Afi:  api.Family_AFI_LS,
+							Safi: api.Family_SAFI_LS,
+						},
+						Enabled: true,
+					},
+				},
+			},
 		},
-	})
+	}
+}
+
+type bgpGlobalCfg struct {
+	AS         uint32
+	RouterId   string
+	ListenPort int32
+}
+
+func readBGPGlobalCfg() *bgpGlobalCfg {
+	return &bgpGlobalCfg{
+		AS:         65001,
+		RouterId:   "19.19.19.19",
+		ListenPort: -1, // gobgp won't listen on tcp:179
+	}
+}
+
+func prepBGPStartRequest(cfg *bgpGlobalCfg) *api.StartBgpRequest {
+	return &api.StartBgpRequest{
+		Global: &api.Global{
+			As:         cfg.AS,
+			RouterId:   cfg.RouterId,
+			ListenPort: cfg.ListenPort,
+		},
+	}
+}
+
+func startBGPLS(topology *TopoView, stopCh chan bool) {
+
+	bgpServer := gobgp.NewBgpServer()
+	go bgpServer.Serve()
+
+	bgpCfg := readBGPGlobalCfg()
+
+	err := bgpServer.StartBgp(context.Background(), prepBGPStartRequest(bgpCfg))
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"type":  "bgp",
@@ -428,52 +482,25 @@ func startBGPLS(topology *TopoView) {
 		}).Error(err)
 	}
 
-	err = s.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) { logrus.Info(p) })
+	err = bgpServer.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) { logrus.Info(p) })
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"type":  "bgp",
 			"event": "start",
 		}).Error("start MonitorPeer")
 	}
-	// neighbor configuration
-	n := &api.Peer{
-		Conf: &api.PeerConf{
-			NeighborAddress: "10.0.0.10",
-			PeerAs:          65000,
-		},
-		EbgpMultihop: &api.EbgpMultihop{
-			Enabled:     true,
-			MultihopTtl: 2,
-		},
-		ApplyPolicy: &api.ApplyPolicy{
-			ImportPolicy: &api.PolicyAssignment{
-				DefaultAction: api.RouteAction_ACCEPT,
-			},
-			ExportPolicy: &api.PolicyAssignment{
-				DefaultAction: api.RouteAction_REJECT,
-			},
-		},
-		AfiSafis: []*api.AfiSafi{
-			{
-				Config: &api.AfiSafiConfig{
-					Family: &api.Family{
-						Afi:  api.Family_AFI_LS,
-						Safi: api.Family_SAFI_LS,
-					},
-					Enabled: true,
-				},
-			},
-		},
-	}
-	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: n})
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"type":  "bgp",
-			"event": "start",
-		}).Error("add peer")
+
+	for _, peer := range getPeers() {
+		err = bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer})
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type":  "bgp",
+				"event": "start",
+			}).Error("add peer")
+		}
 	}
 
-	err = s.MonitorTable(context.Background(), &api.MonitorTableRequest{
+	err = bgpServer.MonitorTable(context.Background(), &api.MonitorTableRequest{
 		TableType: api.TableType_GLOBAL,
 		Family: &api.Family{
 			Afi:  api.Family_AFI_LS,
@@ -489,5 +516,18 @@ func startBGPLS(topology *TopoView) {
 		}).Error("start monitor table")
 	}
 
-	select {}
+	<-stopCh
+
+	err = bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type":  "bgp",
+			"event": "stop",
+		}).Error(err)
+	}
+	logrus.WithFields(logrus.Fields{
+		"type":  "bgp",
+		"event": "bgp stop",
+	}).Info("stopping bgp")
+
 }

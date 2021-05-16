@@ -35,7 +35,13 @@ func (g *GRPCAPI) GetSessions(ctx context.Context, in *pb.SessionsRequest) (*pb.
 			DeadTimer: uint32(session.DeadTimer),
 		})
 	}
+	g.RUnlock()
 	return &pb.SessionsReply{Sessions: pbSessions}, nil
+}
+
+func (g *GRPCAPI) StopBGP(ctx context.Context, in *pb.StopBGPRequest) (*pb.StopBGPReplay, error) {
+	g.ctr.StopBGP <- true
+	return &pb.StopBGPReplay{}, nil
 }
 
 // GetLSPs implements helloworld.GreeterServer
@@ -66,6 +72,7 @@ func (g *GRPCAPI) GetLSPs(ctx context.Context, in *pb.LSPRequest) (*pb.LSPReply,
 			IncludeAll:   lsp.IncludeAll,
 		})
 	}
+	g.RUnlock()
 	return &pb.LSPReply{LSPs: pbLSPs}, nil
 }
 
