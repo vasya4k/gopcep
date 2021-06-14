@@ -6,3 +6,4 @@ controller/bgpls/main.go
 controller/bgpls/output.json
 controller/bgpls/Untitled-2.conf
 scripts/routes.sh
+my.db

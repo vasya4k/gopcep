@@ -1,4 +1,4 @@
-package grpcapi
+package certs
 
 import (
 	"bytes"
@@ -32,7 +32,7 @@ func createCertTemplate() *x509.Certificate {
 
 func GenCerts() (*tls.Certificate, *x509.CertPool, error) {
 
-	privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, err
 	}
