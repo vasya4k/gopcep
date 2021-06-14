@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Controller represents TE controller
@@ -23,6 +24,7 @@ type Controller struct {
 	// I am not sure if PCEP lib needs a list at all
 	LSPs    map[string]*pcep.SRLSP
 	StopBGP chan bool
+	db      *bolt.DB
 }
 
 // LoadPSessions aa
@@ -60,16 +62,17 @@ func (c *Controller) SessionEnd(key string) {
 }
 
 // Start  aa
-func Start() *Controller {
+func Start(db *bolt.DB) *Controller {
 	c := &Controller{
 		PCEPSessions: make(map[string]*pcep.Session),
 		NewSession:   make(chan *pcep.Session),
 		TopoView:     NewTopoView(),
 		LSPs:         make(map[string]*pcep.SRLSP),
 		StopBGP:      make(chan bool),
+		db:           db,
 	}
 
-	go startBGPLS(c.TopoView, c.StopBGP)
+	go c.StartBGPLS()
 
 	go func() {
 		for {
