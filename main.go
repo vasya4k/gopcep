@@ -4,11 +4,13 @@ import (
 	"gopcep/controller"
 	"gopcep/grpcapi"
 	"gopcep/pcep"
+	"gopcep/restapi"
 	"os"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v2"
+	bolt "go.etcd.io/bbolt"
 )
 
 type logCfg struct {
@@ -21,6 +23,7 @@ type logCfg struct {
 
 type cfg struct {
 	grpcapi grpcapi.Config
+	restapi restapi.Config
 	pcep    pcep.Cfg
 	logCfg  logCfg
 }
@@ -51,6 +54,12 @@ func appCfg(cfgPath string) *cfg {
 			ListenPort: viper.GetString("grpcapi.listen_port"),
 			Tokens:     viper.GetStringSlice("grpcapi.tokens"),
 		},
+		restapi: restapi.Config{
+			Address:  viper.GetString("restapi.listen_addr"),
+			Port:     viper.GetString("restapi.listen_port"),
+			CertFile: viper.GetString("restapi.certf_ile"),
+			KeyFile:  viper.GetString("restapi.key_file"),
+		},
 		logCfg: logCfg{
 			LogLevel:        viper.GetUint32("log.level"),
 			TimestampFormat: viper.GetString("log.time_format"),
@@ -78,9 +87,7 @@ func configureLogging(cfg logCfg) {
 }
 
 func startController(c *cli.Context) error {
-
 	cfg := appCfg(c.String("config"))
-
 	configureLogging(cfg.logCfg)
 
 	logrus.WithFields(logrus.Fields{
@@ -89,12 +96,38 @@ func startController(c *cli.Context) error {
 		"config": cfg,
 	}).Info("running with config")
 
-	controller := controller.Start()
+	db, err := bolt.Open("my.db", 0600, nil)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"topic": "db",
+			"event": "failed to open db",
+		}).Fatal(err)
+	}
 
-	err := grpcapi.Start(&cfg.grpcapi, controller)
+	defer func() {
+		err = db.Close()
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"topic": "db",
+				"event": "failed to close db",
+			}).Error(err)
+		}
+	}()
+
+	controller := controller.Start(db)
+
+	err = grpcapi.Start(&cfg.grpcapi, controller)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"topic": "grpcapi",
+			"event": "start error",
+		}).Fatal(err)
+	}
+
+	err = restapi.StartREST(&cfg.restapi, controller)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"topic": "restapi",
 			"event": "start error",
 		}).Fatal(err)
 	}
