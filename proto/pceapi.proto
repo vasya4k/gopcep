@@ -12,7 +12,12 @@ service PCE {
   rpc GetSessions (SessionsRequest) returns (SessionsReply) {}
   rpc GetLSPs (LSPRequest) returns (LSPReply) {}
   rpc StopBGP (StopBGPRequest) returns (StopBGPReplay) {}
+  rpc StartBGP (StartBGPRequest) returns (StartBGPReplay) {}
 }
+
+message StartBGPRequest {}
+
+message StartBGPReplay {}
 
 message StopBGPRequest {}
 

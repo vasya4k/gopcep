@@ -467,12 +467,14 @@ func prepBGPStartRequest(cfg *bgpGlobalCfg) *api.StartBgpRequest {
 	}
 }
 
-func startBGPLS(topology *TopoView, stopCh chan bool) {
+func (c *Controller) StartBGPLS() {
 
 	bgpServer := gobgp.NewBgpServer()
 	go bgpServer.Serve()
 
 	bgpCfg := readBGPGlobalCfg()
+
+	c.StopBGP = make(chan bool)
 
 	err := bgpServer.StartBgp(context.Background(), prepBGPStartRequest(bgpCfg))
 	if err != nil {
@@ -507,7 +509,7 @@ func startBGPLS(topology *TopoView, stopCh chan bool) {
 			Safi: api.Family_SAFI_LS,
 		},
 	}, func(p *api.Path) {
-		topology.Monitor(p)
+		c.TopoView.Monitor(p)
 	})
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
@@ -516,7 +518,7 @@ func startBGPLS(topology *TopoView, stopCh chan bool) {
 		}).Error("start monitor table")
 	}
 
-	<-stopCh
+	<-c.StopBGP
 
 	err = bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
 	if err != nil {

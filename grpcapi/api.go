@@ -3,6 +3,8 @@ package grpcapi
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
+	"gopcep/certs"
 	"gopcep/controller"
 	pb "gopcep/proto"
 	"net"
@@ -40,8 +42,26 @@ func (g *GRPCAPI) GetSessions(ctx context.Context, in *pb.SessionsRequest) (*pb.
 }
 
 func (g *GRPCAPI) StopBGP(ctx context.Context, in *pb.StopBGPRequest) (*pb.StopBGPReplay, error) {
-	g.ctr.StopBGP <- true
-	return &pb.StopBGPReplay{}, nil
+
+	select {
+	case _, ok := <-g.ctr.StopBGP:
+		if !ok {
+			fmt.Println("already closed ch")
+			return nil, fmt.Errorf("bgp is already stopped")
+		}
+	default:
+		fmt.Println("closing ch")
+		close(g.ctr.StopBGP)
+		fmt.Println("closed ch")
+		return &pb.StopBGPReplay{}, nil
+	}
+	// Check if already closed
+	return nil, fmt.Errorf("bgp is already stopped")
+}
+
+func (g *GRPCAPI) StartBGP(ctx context.Context, in *pb.StartBGPRequest) (*pb.StartBGPReplay, error) {
+	go g.ctr.StartBGPLS()
+	return &pb.StartBGPReplay{}, nil
 }
 
 // GetLSPs implements helloworld.GreeterServer
@@ -88,7 +108,7 @@ func Start(cfg *Config, controller *controller.Controller) error {
 	api := GRPCAPI{
 		ctr: controller,
 	}
-	cert, pool, err := GenCerts()
+	cert, pool, err := certs.GenCerts()
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"topic": "grpc_api",
