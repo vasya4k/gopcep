@@ -1,11 +1,14 @@
 package controller
 
 import (
+	"encoding/json"
 	"gopcep/pcep"
 	"strings"
 	"sync"
 	"time"
 
+	gobgp "github.com/osrg/gobgp/pkg/server"
+	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
 )
@@ -21,10 +24,114 @@ type Controller struct {
 	// PCEP then the controller does not know we created an LSP
 	// and can try to create the same one before we recive RPT
 	// from the router.
-	// I am not sure if PCEP lib needs a list at all
-	LSPs    map[string]*pcep.SRLSP
-	StopBGP chan bool
-	db      *bolt.DB
+	// I am not sure yet if PCEP lib needs a list at all
+	LSPs      map[string]*pcep.SRLSP
+	StopBGP   chan bool
+	db        *bolt.DB
+	bgpServer *gobgp.BgpServer
+}
+type BGPLSPeer struct {
+	NeighborAddress     string
+	PeerAs              int
+	EbgpMultihopEnabled bool
+	EBGPMultihopTtl     int
+}
+
+type Router struct {
+	Name         string
+	ID           string
+	MgmtIP       string
+	ISOAddr      string
+	LoopbackIP   string
+	BGPLSPeer    bool
+	BGPLSPeerCfg BGPLSPeer
+}
+
+// AddRouter aa
+func (c *Controller) AddRouter(router *Router) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte("routers"))
+		if err != nil {
+			return err
+		}
+		data, err := json.Marshal(router)
+		if err != nil {
+			return err
+		}
+		return b.Put(uuid.NewV4().Bytes(), data)
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// UpdateRouter aa
+func (c *Controller) UpdateRouter(router *Router) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte("routers"))
+		if err != nil {
+			return err
+		}
+		data, err := json.Marshal(router)
+		if err != nil {
+			return err
+		}
+		id, err := uuid.FromString(router.ID)
+		if err != nil {
+			return err
+		}
+		return b.Put(id.Bytes(), data)
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// DeleteRouter aa
+func (c *Controller) DeleteRouter(router *Router) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte("routers"))
+		if err != nil {
+			return err
+		}
+		id, err := uuid.FromString(router.ID)
+		if err != nil {
+			return err
+		}
+		return b.Delete(id.Bytes())
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Controller) GetRouters() ([]*Router, error) {
+	routers := make([]*Router, 0)
+	err := c.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("routers"))
+		if b != nil {
+			err := b.ForEach(func(k, v []byte) error {
+				var r Router
+				err := json.Unmarshal(v, &r)
+				if err != nil {
+					return err
+				}
+				routers = append(routers, &r)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return routers, nil
 }
 
 // LoadPSessions aa
@@ -61,7 +168,7 @@ func (c *Controller) SessionEnd(key string) {
 	c.DeletePSession(key)
 }
 
-// Start  aa
+// Start  controller
 func Start(db *bolt.DB) *Controller {
 	c := &Controller{
 		PCEPSessions: make(map[string]*pcep.Session),
