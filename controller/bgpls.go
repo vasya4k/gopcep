@@ -469,14 +469,14 @@ func prepBGPStartRequest(cfg *bgpGlobalCfg) *api.StartBgpRequest {
 
 func (c *Controller) StartBGPLS() {
 
-	bgpServer := gobgp.NewBgpServer()
-	go bgpServer.Serve()
+	c.bgpServer = gobgp.NewBgpServer()
+	go c.bgpServer.Serve()
 
 	bgpCfg := readBGPGlobalCfg()
 
 	c.StopBGP = make(chan bool)
 
-	err := bgpServer.StartBgp(context.Background(), prepBGPStartRequest(bgpCfg))
+	err := c.bgpServer.StartBgp(context.Background(), prepBGPStartRequest(bgpCfg))
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"type":  "bgp",
@@ -484,7 +484,7 @@ func (c *Controller) StartBGPLS() {
 		}).Error(err)
 	}
 
-	err = bgpServer.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) { logrus.Info(p) })
+	err = c.bgpServer.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) { logrus.Info(p) })
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"type":  "bgp",
@@ -493,7 +493,7 @@ func (c *Controller) StartBGPLS() {
 	}
 
 	for _, peer := range getPeers() {
-		err = bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer})
+		err = c.bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer})
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"type":  "bgp",
@@ -502,7 +502,7 @@ func (c *Controller) StartBGPLS() {
 		}
 	}
 
-	err = bgpServer.MonitorTable(context.Background(), &api.MonitorTableRequest{
+	err = c.bgpServer.MonitorTable(context.Background(), &api.MonitorTableRequest{
 		TableType: api.TableType_GLOBAL,
 		Family: &api.Family{
 			Afi:  api.Family_AFI_LS,
@@ -520,7 +520,7 @@ func (c *Controller) StartBGPLS() {
 
 	<-c.StopBGP
 
-	err = bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
+	err = c.bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{})
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"type":  "bgp",
@@ -532,4 +532,17 @@ func (c *Controller) StartBGPLS() {
 		"event": "bgp stop",
 	}).Info("stopping bgp")
 
+}
+
+func (c *Controller) GetBGPNeighbor() ([]*api.Peer, error) {
+	var list []*api.Peer
+
+	err := c.bgpServer.ListPeer(context.Background(), &api.ListPeerRequest{}, func(n *api.Peer) {
+		list = append(list, n)
+
+	})
+	if err != nil {
+		return nil, err
+	}
+	return list, nil
 }

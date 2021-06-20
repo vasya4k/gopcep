@@ -32,6 +32,15 @@ func (h *handler) getLSPs(c *gin.Context) {
 	c.JSON(200, h.ctr.LSPs)
 }
 
+func (h *handler) getBGPNeighbors(c *gin.Context) {
+	list, err := h.ctr.GetBGPNeighbor()
+	if err != nil {
+		c.AbortWithStatusJSON(500, err.Error())
+		return
+	}
+	c.JSON(200, list)
+}
+
 type Config struct {
 	Address  string
 	Port     string
@@ -80,6 +89,7 @@ func StartREST(cfg *Config, controller *controller.Controller) error {
 
 	apiV1.GET("/pcepsessions", h.getSessions)
 	apiV1.GET("/pceplsps", h.getLSPs)
+	apiV1.GET("/bgpneighbors", h.getBGPNeighbors)
 
 	// Using self signed self generated certs
 	// New certs are generated during startup
