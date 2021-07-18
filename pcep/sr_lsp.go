@@ -302,7 +302,7 @@ func (s *SREROSub) validateSREROSub() error {
 		return fmt.Errorf("M and C bits MUST be set to zero m bit is %t and c bit is %t", s.MBit, s.CBit)
 	}
 	if s.NoSID && s.NoNAI {
-		return errors.New("The S and F bits MUST NOT both be set to 1")
+		return errors.New("S and F bits MUST NOT both be set to 1")
 	}
 	return nil
 }
