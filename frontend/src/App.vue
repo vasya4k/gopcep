@@ -1,15 +1,20 @@
 <template>
   <TopBar />
-  <router-view />
+  <div class="layout-content">
+    <router-view />
+  </div>
+  <AppFooter />
 </template>
 
 <script lang="ts">
 import { Options, Vue } from "vue-class-component";
 import TopBar from "./Topbar.vue";
+import AppFooter from "./AppFooter.vue";
 
 @Options({
   components: {
-    TopBar
+    TopBar: TopBar,
+    AppFooter: AppFooter
   }
 })
 export default class App extends Vue {}
@@ -17,7 +22,7 @@ export default class App extends Vue {}
 
 <style lang="scss">
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-family: Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;

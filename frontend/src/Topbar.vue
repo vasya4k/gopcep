@@ -16,23 +16,18 @@ export default class Topbar extends Vue {
     return {
       items: [
         {
-          label: "Routers",
+          label: "Inventory",
           icon: "pi pi-fw pi-file",
           items: [
             {
-              label: "New",
+              label: "Routers",
               icon: "pi pi-fw pi-plus",
-              items: [
-                {
-                  label: "Bookmark",
-                  icon: "pi pi-fw pi-bookmark"
-                }
-              ]
+              to: "/routers"
             },
             {
-              label: "List",
-              icon: "pi pi-fw pi-trash",
-              to: "/about"
+              label: "Services",
+              icon: "pi pi-fw pi-angle-double-right",
+              to: "/bgp"
             },
             {
               separator: true
@@ -44,9 +39,9 @@ export default class Topbar extends Vue {
           icon: "pi pi-fw pi-pencil",
           items: [
             {
-              label: "Sesstions",
+              label: "Sessions",
               icon: "pi pi-fw pi-trash",
-              to: "/about"
+              to: "/psessions"
             },
             {
               label: "Parameters",
@@ -60,12 +55,28 @@ export default class Topbar extends Vue {
           items: [
             {
               label: "List",
-              icon: "pi pi-fw pi-user-plus"
+              icon: "pi pi-fw pi-user-plus",
+              to: "/lsps"
             }
           ]
         },
         {
-          label: "Logs",
+          label: "Topology",
+          icon: "pi pi-fw pi-calendar",
+          items: [
+            {
+              label: "BGP-LS",
+              icon: "pi pi-fw pi-angle-double-right",
+              to: "/bgp"
+            },
+            {
+              label: "IS-IS",
+              icon: "pi pi-fw pi-calendar-times"
+            }
+          ]
+        },
+        {
+          label: "Debug",
           icon: "pi pi-fw pi-calendar",
           items: [
             {
@@ -83,10 +94,6 @@ export default class Topbar extends Vue {
               ]
             }
           ]
-        },
-        {
-          label: "Map",
-          icon: "pi pi-fw pi-power-off"
         }
       ]
     };
