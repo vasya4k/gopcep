@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"gopcep/pcep"
 	"strings"
 	"sync"
@@ -19,16 +20,18 @@ type Controller struct {
 	PCEPSessions map[string]*pcep.Session
 	NewSession   chan *pcep.Session
 	TopoView     *TopoView
-	// Tthe list of LSPs is maintained by the controller and
-	// inside PCEP libriry as well. if I just use one list in
-	// PCEP then the controller does not know we created an LSP
-	// and can try to create the same one before we recive RPT
-	// from the router.
-	// I am not sure yet if PCEP lib needs a list at all
+	// The LSP list is maintained by the controller and
+	// inside PCEP libriry as well. If I just use one list in
+	// PCEP then the controller does not know it created an LSP
+	// and can try to create the same one before it recives RPT
+	// from the router. Below are the LSPs initiated by us.
+	// In theory there can be other LSPs delegated to us and they are stored
+	// inside the PCEP Session struct
 	LSPs      map[string]*pcep.SRLSP
 	StopBGP   chan bool
 	db        *bolt.DB
 	bgpServer *gobgp.BgpServer
+	Routers   map[string]*Router
 }
 type BGPLSPeer struct {
 	NeighborAddress     string
@@ -38,17 +41,34 @@ type BGPLSPeer struct {
 }
 
 type Router struct {
-	Name         string
-	ID           string
-	MgmtIP       string
-	ISOAddr      string
-	LoopbackIP   string
-	BGPLSPeer    bool
-	BGPLSPeerCfg BGPLSPeer
+	Name              string
+	ID                string
+	MgmtIP            string
+	ISOAddr           string
+	LoopbackIP        string
+	BGPLSPeer         bool
+	BGPLSPeerCfg      BGPLSPeer
+	IncludeInFullMesh bool
+	PCEPSessionSrcIP  string
+}
+
+func (c *Controller) GetLSPs() []*pcep.LSP {
+	defer c.RUnlock()
+
+	c.RLock()
+	var lsps []*pcep.LSP
+	for _, session := range c.PCEPSessions {
+		for _, lsp := range session.LSPs {
+			lsps = append(lsps, lsp)
+		}
+	}
+	return lsps
 }
 
 // AddRouter aa
-func (c *Controller) AddRouter(router *Router) error {
+func (c *Controller) CreateUpdRouter(router *Router) error {
+	defer c.Unlock()
+	c.Lock()
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte("routers"))
 		if err != nil {
@@ -58,31 +78,19 @@ func (c *Controller) AddRouter(router *Router) error {
 		if err != nil {
 			return err
 		}
-		return b.Put(uuid.NewV4().Bytes(), data)
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// UpdateRouter aa
-func (c *Controller) UpdateRouter(router *Router) error {
-	err := c.db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte("routers"))
-		if err != nil {
-			return err
+		_, ok := c.Routers[router.ID]
+		if ok {
+			id, err := uuid.FromString(router.ID)
+			if err != nil {
+				return err
+			}
+			return b.Put(id.Bytes(), data)
 		}
-		data, err := json.Marshal(router)
-		if err != nil {
-			return err
-		}
-		id, err := uuid.FromString(router.ID)
-		if err != nil {
-			return err
-		}
+		id := uuid.NewV4()
+		router.ID = id.String()
 		return b.Put(id.Bytes(), data)
 	})
+	c.Routers[router.ID] = router
 	if err != nil {
 		return err
 	}
@@ -90,17 +98,29 @@ func (c *Controller) UpdateRouter(router *Router) error {
 }
 
 // DeleteRouter aa
-func (c *Controller) DeleteRouter(router *Router) error {
+func (c *Controller) DeleteRouter(id string) error {
+	defer c.Unlock()
+	c.Lock()
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte("routers"))
 		if err != nil {
 			return err
 		}
-		id, err := uuid.FromString(router.ID)
+
+		uid, err := uuid.FromString(id)
 		if err != nil {
 			return err
 		}
-		return b.Delete(id.Bytes())
+
+		var r *Router
+
+		for _, v := range c.Routers {
+			if v.ID == uid.String() {
+				r = v
+			}
+		}
+		delete(c.Routers, r.ID)
+		return b.Delete(uid.Bytes())
 	})
 	if err != nil {
 		return err
@@ -109,6 +129,8 @@ func (c *Controller) DeleteRouter(router *Router) error {
 }
 
 func (c *Controller) GetRouters() ([]*Router, error) {
+	defer c.RUnlock()
+	c.RLock()
 	routers := make([]*Router, 0)
 	err := c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("routers"))
@@ -132,6 +154,49 @@ func (c *Controller) GetRouters() ([]*Router, error) {
 		return nil, err
 	}
 	return routers, nil
+}
+
+func (c *Controller) LoadRouters() error {
+	defer c.Unlock()
+	routers, err := c.GetRouters()
+	if err != nil {
+		return err
+	}
+	c.Lock()
+	for _, r := range routers {
+		c.Routers[r.ID] = r
+	}
+	return nil
+}
+
+func (c *Controller) GetAllLSPDestinations() []string {
+	defer c.RUnlock()
+
+	var destinations []string
+
+	c.RLock()
+	for _, r := range c.Routers {
+		if !r.IncludeInFullMesh {
+			continue
+		}
+		destinations = append(destinations, r.ISOAddr)
+	}
+	return destinations
+}
+
+func (c *Controller) GetRouterISOAddr(pcepSrcIP string) (string, error) {
+	defer c.RUnlock()
+
+	c.RLock()
+	for _, r := range c.Routers {
+		if !r.IncludeInFullMesh {
+			continue
+		}
+		if r.PCEPSessionSrcIP == pcepSrcIP {
+			return r.ISOAddr, nil
+		}
+	}
+	return "", errors.New("router with a given PCEP src session addr not found")
 }
 
 // LoadPSessions aa
@@ -176,9 +241,17 @@ func Start(db *bolt.DB) *Controller {
 		TopoView:     NewTopoView(),
 		LSPs:         make(map[string]*pcep.SRLSP),
 		StopBGP:      make(chan bool),
+		Routers:      make(map[string]*Router),
 		db:           db,
 	}
 
+	err := c.LoadRouters()
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type":  "controller",
+			"event": "load_routers",
+		}).Fatal(err)
+	}
 	go c.StartBGPLS()
 
 	go func() {
@@ -226,6 +299,10 @@ func (c *Controller) watchSession(session *pcep.Session) {
 	}
 }
 
+func getSrcAddrFromSession(session *pcep.Session) string {
+	return strings.Split(session.Conn.RemoteAddr().String(), ":")[0]
+}
+
 // InitSRLSPs aaaa
 func (c *Controller) InitSRLSPs(session *pcep.Session) {
 	start := time.Now()
@@ -236,14 +313,26 @@ func (c *Controller) InitSRLSPs(session *pcep.Session) {
 			}
 		}
 	}
-	logrus.Printf("topo calc took %s", time.Since(start))
-	sessionSrcAddr := strings.Split(session.Conn.RemoteAddr().String(), ":")[0]
+	logrus.WithFields(logrus.Fields{
+		"type":      "lsp_init",
+		"event":     "topo calc done",
+		"time_took": time.Since(start),
+	}).Info("find all path done")
 
-	allDestinations := []string{"0192.0168.0014", "0192.0168.0011"}
+	// sessionSrcAddr := getSrcAddrFromSession(session)
+	// allDestinations := []string{"0192.0168.0014", "0192.0168.0011"}
+	// pcepSrctoIGPSrcMapping := map[string]string{"10.0.0.10": "0100.1001.0010"}
+	// srcAddr := pcepSrctoIGPSrcMapping[sessionSrcAddr]
 
-	pcepSrctoIGPSrcMapping := map[string]string{"10.0.0.10": "0100.1001.0010"}
-
-	srcAddr := pcepSrctoIGPSrcMapping[sessionSrcAddr]
+	allDestinations := c.GetAllLSPDestinations()
+	srcAddr, err := c.GetRouterISOAddr(getSrcAddrFromSession(session))
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type":  "lsp_init",
+			"event": "GetRouterISOAddr",
+		}).Error(err)
+		return
+	}
 
 	logrus.WithFields(logrus.Fields{
 		"type":        "lsp_init",
@@ -289,7 +378,6 @@ func (c *Controller) InitSRLSPs(session *pcep.Session) {
 			continue
 		}
 
-		printAsJSON(c.TopoView.PrefixByIGPRouteID)
 		logrus.WithFields(logrus.Fields{
 			"type":        "lsp_init",
 			"event":       "lsp_created",
