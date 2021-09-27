@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gopcep/certs"
 	"gopcep/controller"
+	"gopcep/pcep"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -27,10 +28,11 @@ func (h *handler) getSessions(c *gin.Context) {
 	c.JSON(200, h.ctr.PCEPSessions)
 }
 
-func (h *handler) getLSPs(c *gin.Context) {
-	defer h.ctr.RUnlock()
+func (h *handler) getNetLSPs(c *gin.Context) {
+	c.JSON(200, h.ctr.GetSRLSPs())
+}
 
-	h.ctr.RLock()
+func (h *handler) getLSPs(c *gin.Context) {
 	c.JSON(200, h.ctr.GetLSPs())
 }
 
@@ -62,7 +64,6 @@ func (h *handler) createUpdRouter(c *gin.Context) {
 func (h *handler) deleteRouter(c *gin.Context) {
 	err := h.ctr.DeleteRouter(c.Param("id"))
 	if err != nil {
-		fmt.Println("VVVV", err)
 		c.AbortWithStatusJSON(500, err)
 		return
 	}
@@ -76,6 +77,40 @@ func (h *handler) listRouters(c *gin.Context) {
 		return
 	}
 	c.JSON(200, routers)
+}
+
+func (h *handler) createUpdLSP(c *gin.Context) {
+	var lsp pcep.SRLSP
+
+	err := c.BindJSON(&lsp)
+	if err != nil {
+		c.AbortWithStatusJSON(500, map[string]string{
+			"msg": err.Error(),
+		})
+		return
+	}
+
+	fmt.Println(lsp)
+
+	err = h.ctr.CreateUpdSRLSP(&lsp)
+	if err != nil {
+		c.AbortWithStatusJSON(500, map[string]string{
+			"msg": err.Error(),
+		})
+		return
+	}
+	c.JSON(200, lsp)
+}
+
+func (h *handler) delLSP(c *gin.Context) {
+
+	err := h.ctr.DelSRLSP(c.Param("name"))
+	if err != nil {
+		c.AbortWithStatusJSON(500, err)
+		return
+	}
+
+	c.JSON(200, c.Param("name"))
 }
 
 type Config struct {
@@ -100,7 +135,7 @@ func StartREST(cfg *Config, controller *controller.Controller) error {
 	// The value of the 'Access-Control-Allow-Origin' header in the
 	// response must not be the wildcard '*' when the request's credentials mode is 'include'.
 	// The credentials mode of requests initiated by the XMLHttpRequest is controlled by the withCredentials attribute.
-	config.AllowOrigins = []string{"http://localhost:8080"}
+	config.AllowOrigins = []string{"http://localhost:8080", "http://localhost:8082"}
 	config.AllowMethods = []string{"*"}
 	config.ExposeHeaders = []string{"*"}
 	//Need cors if UI is served from a different server
@@ -136,13 +171,22 @@ func StartREST(cfg *Config, controller *controller.Controller) error {
 		})
 	})
 
+	// PCEP
 	apiV1.GET("/pcepsessions", h.getSessions)
-	apiV1.GET("/pceplsps", h.getLSPs)
+
+	// BGP
 	apiV1.GET("/bgpneighbors", h.getBGPNeighbors)
-	// router methods
+
+	// Router methods
 	apiV1.POST("/router", h.createUpdRouter)
 	apiV1.DELETE("/router/:id", h.deleteRouter)
 	apiV1.GET("/routers", h.listRouters)
+
+	// LSP methods
+	apiV1.POST("/lsp", h.createUpdLSP)
+	apiV1.DELETE("/lsp/:name", h.delLSP)
+	apiV1.GET("/pceplsps", h.getLSPs)
+	apiV1.GET("/ctrlsps", h.getNetLSPs)
 
 	// Using self signed self generated certs
 	// New certs are generated during startup
