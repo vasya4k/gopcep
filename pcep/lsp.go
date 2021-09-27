@@ -12,7 +12,7 @@ import (
 
 // InitLSP aaaa
 func (s *Session) InitLSP(l *LSP) error {
-	sro, err := s.newSRPObject()
+	sro, err := s.newSRPObject(false)
 	if err != nil {
 		return err
 	}
@@ -57,6 +57,24 @@ func (s *Session) InitLSP(l *LSP) error {
 	}).Infof("sent LSP initiate Request: %d byte", i)
 	return nil
 }
+
+// O (Operational - 3 bits):  On PCRpt messages, the O field represents
+//       the operational status of the LSP.
+
+//       The following values are defined:
+
+//       0 - DOWN:         not active.
+
+//       1 - UP:           signaled.
+
+//       2 - ACTIVE:       up and carrying traffic.
+
+//       3 - GOING-DOWN:   LSP is being torn down, and resources are being
+//                         released.
+
+//       4 - GOING-UP:     LSP is being signaled.
+
+//       5-7 - Reserved:   these values are reserved for future use.
 
 //LSP represents a Segment routing LSP  https://tools.ietf.org/html/rfc8231#section-7.3
 type LSP struct {
@@ -132,6 +150,8 @@ func (l *LSP) parseLSPSubObj(data []byte) error {
 			if err != nil {
 				return err
 			}
+			l.Src = int2ip(l.IPv4ID.SenderAddr)
+			l.Dst = int2ip(l.IPv4ID.EndpointAddr)
 			offset = offset + binary.BigEndian.Uint16(data[offset+2:offset+4]) + 4
 			continue
 		case 19:

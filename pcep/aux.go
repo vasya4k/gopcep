@@ -58,6 +58,12 @@ func padBytes(b []byte, blocksize int) ([]byte, error) {
 	return pb, nil
 }
 
+func int2ip(i uint32) string {
+	ip := make(net.IP, 4)
+	binary.BigEndian.PutUint32(ip, i)
+	return ip.String()
+}
+
 func ipToUnit32(ipStr string) (uint32, error) {
 	var res uint32
 	ip := net.ParseIP(ipStr)

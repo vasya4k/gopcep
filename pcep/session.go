@@ -47,7 +47,12 @@ func NewSession(conn net.Conn) *Session {
 	}
 }
 
+func (s *Session) GetSrcAddrFromSession() string {
+	return strings.Split(s.Conn.RemoteAddr().String(), ":")[0]
+}
+
 func (s *Session) saveUpdLSP(lsp *LSP) {
+
 	if lsp.Name != "" {
 		s.LSPs[lsp.Name] = lsp
 		s.PLSPIDToName[lsp.PLSPID] = lsp.Name
@@ -380,7 +385,7 @@ func startPCEPSession(conn net.Conn, controller Controller) {
 				"remote_addr": conn.RemoteAddr().String(),
 			}).Error(err)
 		}
-		controller.SessionEnd(conn.RemoteAddr().String())
+		controller.SessionEnd(strings.Split(conn.RemoteAddr().String(), ":")[0])
 	}()
 
 	buff := make([]byte, 1024)

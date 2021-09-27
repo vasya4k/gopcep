@@ -10,7 +10,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// https://datatracker.ietf.org/doc/html/rfc8231#section-7.3
 // SRLSP represents a Segment routing LSP
+//
 type SRLSP struct {
 	Delegate     bool
 	Sync         bool
@@ -24,11 +26,12 @@ type SRLSP struct {
 	HoldPrio     uint8
 	LocalProtect bool
 	BW           uint32
+	SRPRemove    bool
 }
 
 // InitSRLSP aaaa
 func (s *Session) InitSRLSP(l *SRLSP) error {
-	sro, err := s.newSRPObject()
+	sro, err := s.newSRPObject(l.SRPRemove)
 	if err != nil {
 		return err
 	}
@@ -71,16 +74,24 @@ func (s *Session) InitSRLSP(l *SRLSP) error {
 	return nil
 }
 
-// https://tools.ietf.org/html/rfc8231#section-7.2
+// https://www.rfc-editor.org/rfc/rfc8281.html#section-5.2
 // Stateful PCE Request Parameters
-// Flags (32 bits): None defined yet.
+// Flags (32 bits)
+// R (LSP-REMOVE -- 1 bit):  If set to 0, it indicates a request to
+//       create an LSP.  If set to 1, it indicates a request to remove an
+//       LSP.
 // SRP Object-Class is 33.
 // SRP Object-Type is 1.
-func (s *Session) newSRPObject() ([]byte, error) {
+func (s *Session) newSRPObject(removeLSP bool) ([]byte, error) {
 	var flags uint32
+	if removeLSP {
+		// setting remove flag at possition 0
+		flags |= (1 << 0)
+	}
 	if s.SRPID == 4294967295 {
 		s.SRPID = 0
 	}
+
 	s.SRPID++
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.BigEndian, flags)

@@ -112,7 +112,7 @@ func (s Session) HandlePCRpt(data []byte) {
 				logrus.WithFields(logrus.Fields{
 					"type": "err",
 					"func": "parseLSPObj",
-				}).Error(fmt.Errorf("unknown obj AAAA type %d", coh.ObjectType))
+				}).Error(fmt.Errorf("unknown obj type %d", coh.ObjectType))
 				return
 			}
 			err := lsp.parseLSPObj(data[offset+4 : offset+coh.ObjectLength])
@@ -145,6 +145,21 @@ func (s Session) HandlePCRpt(data []byte) {
 		}).Info("found lsp with no id skipping")
 		return
 	}
+
 	printAsJSON(lsp)
+
+	if lsp.Remove {
+		logrus.WithFields(logrus.Fields{
+			"type":     "path computation lsp state report",
+			"peer":     s.Conn.RemoteAddr().String(),
+			"event":    "lsp_del",
+			"lsp_src":  lsp.Src,
+			"lsp_dst":  lsp.Dst,
+			"lsp_name": lsp.Name,
+		}).Info("lsp deleted")
+		s.delLSP(&lsp)
+		return
+	}
+
 	s.saveUpdLSP(&lsp)
 }
