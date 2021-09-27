@@ -7,4 +7,4 @@ controller/bgpls/output.json
 controller/bgpls/Untitled-2.conf
 scripts/routes.sh
 my.db
-ui/*
+ui/node_modules
