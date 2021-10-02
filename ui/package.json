@@ -33,6 +33,7 @@
 		"primevue": "3.7.1",
 		"prismjs": "1.9.0",
 		"vue": "3.2.9",
-		"vue-router": "^4.0.0-0"
+		"vue-router": "^4.0.0-0",
+		"vuex": "^4.0.2"
 	}
 }
