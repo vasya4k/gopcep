@@ -79,27 +79,30 @@ func (c *Controller) GetLSPs() []*pcep.LSP {
 }
 
 func (c *Controller) DelSRLSP(name string) error {
-	defer c.Lock()
+	defer c.Unlock()
 
-	c.Unlock()
+	c.Lock()
 
-	lsp := c.LSPs[name]
-
-	session := c.PCEPSessionsByLoopback[lsp.Src]
-	if session == nil {
-		return fmt.Errorf("no session found for %s looback address", lsp.Src)
+	lsp, ok := c.LSPs[name]
+	if !ok {
+		return fmt.Errorf("no LSP named: %s found", name)
 	}
-	err := session.InitSRLSP(lsp)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"type":  "session",
-			"event": "lsp_init",
-		}).Error(err)
-		return fmt.Errorf("failed to delete %s LSP got err: %s", lsp.Name, err.Error())
-	}
-	delete(c.LSPs, lsp.Name)
 
-	err = c.db.Update(func(tx *bolt.Tx) error {
+	session, ok := c.PCEPSessionsByLoopback[lsp.Src]
+	// if sesstion exists we delete the LSP
+	// if not we just delete it from the DB and map
+	if ok {
+		err := session.InitSRLSP(lsp)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type":  "session",
+				"event": "lsp_init",
+			}).Error(err)
+			return fmt.Errorf("failed to delete %s LSP got err: %s", lsp.Name, err.Error())
+		}
+	}
+
+	err := c.db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte("lsps"))
 		if err != nil {
 			return err
@@ -110,6 +113,8 @@ func (c *Controller) DelSRLSP(name string) error {
 	if err != nil {
 		return err
 	}
+	delete(c.LSPs, lsp.Name)
+
 	return nil
 }
 
@@ -118,21 +123,21 @@ func (c *Controller) CreateUpdSRLSP(lsp *pcep.SRLSP) error {
 
 	c.Lock()
 
-	session := c.PCEPSessionsByLoopback[lsp.Src]
-	if session == nil {
-		return fmt.Errorf("no session found for %s looback address \n", lsp.Src)
+	session, ok := c.PCEPSessionsByLoopback[lsp.Src]
+	// if sesstion exists we init the LSP
+	// if not we just save it to use once we get session esteblished
+	if ok {
+		err := session.InitSRLSP(lsp)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type":  "session",
+				"event": "lsp_init",
+			}).Error(err)
+			return fmt.Errorf("failed to update %s LSP got err: %s", lsp.Name, err.Error())
+		}
 	}
 
-	err := session.InitSRLSP(lsp)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"type":  "session",
-			"event": "lsp_init",
-		}).Error(err)
-		return fmt.Errorf("failed to update %s LSP got err: %s", lsp.Name, err.Error())
-	}
-
-	err = c.db.Update(func(tx *bolt.Tx) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte("lsps"))
 		if err != nil {
 			return err
