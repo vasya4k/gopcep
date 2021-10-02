@@ -60,7 +60,7 @@ export default {
             {
               label: "Services",
               icon: "pi pi-fw pi-calendar",
-              to: "/timeline"
+              to: "/"
             }
           ]
         },
@@ -76,7 +76,7 @@ export default {
             {
               label: "Parameters",
               icon: "pi pi-fw pi-calendar",
-              to: "/timeline"
+              to: "/"
             }
           ]
         },
@@ -96,18 +96,13 @@ export default {
           label: "Topology",
           icon: "pi pi-fw pi-clone",
           items: [
-            { label: "BGP-LS", icon: "pi pi-fw pi-user-edit", to: "/bgpls" },
-            {
-              label: "IS-IS",
-              icon: "pi pi-fw pi-calendar",
-              to: "/timeline"
-            }
+            { label: "BGP-LS", icon: "pi pi-fw pi-user-edit", to: "/bgpls" }
           ]
         },
         {
           label: "Debug",
           icon: "pi pi-fw pi-clone",
-          items: [{ label: "Tail", icon: "pi pi-fw pi-user-edit", to: "/crud" }]
+          items: [{ label: "Tail", icon: "pi pi-fw pi-user-edit", to: "/" }]
         }
       ]
     };

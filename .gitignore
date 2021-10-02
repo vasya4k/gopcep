@@ -8,3 +8,4 @@ controller/bgpls/Untitled-2.conf
 scripts/routes.sh
 my.db
 ui/node_modules
+.DS_Store
