@@ -41,6 +41,7 @@ const routes = [
     {
         path: "/addlsp",
         name: "AddLSP",
+        props: true,
         component: AddLSP,
     }
 ];

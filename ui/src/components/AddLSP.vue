@@ -58,6 +58,7 @@
       <hr style="width:100%" />
       <div class="p-fluid grid">
         <div class="col-12 mb-2 lg:col-4 lg:mb-0">
+          <h6>Src Interface Addr</h6>
           <InputText
             type="text"
             placeholder="Src Interface Addr"
@@ -65,6 +66,7 @@
           />
         </div>
         <div class="col-12 mb-2 lg:col-4 lg:mb-0">
+          <h6>Dst Interface Addr</h6>
           <InputText
             type="text"
             placeholder="Dst Interface Addr"
@@ -72,6 +74,7 @@
           />
         </div>
         <div class="col-12 mb-2 lg:col-4 lg:mb-0">
+          <h6>SID</h6>
           <InputNumber
             v-model="lsp.EROList[0].SID"
             showButtons
@@ -79,8 +82,13 @@
           ></InputNumber>
         </div>
       </div>
+      <h5>Additional Hop ERO</h5>
       <hr style="width:100%" />
-      <div class="grid p-fluid" v-for="(ero, k) in EROList" :key="k">
+      <div
+        class="grid p-fluid"
+        v-for="(ero, k) in lsp.EROList.slice(1)"
+        :key="k"
+      >
         <div class="field col-12 md:col-4">
           <InputText
             type="text"
@@ -101,7 +109,7 @@
             label="Remove"
             class="p-button-raised p-button-warning mr-2 mb-2"
             @click="remove(k)"
-            v-show="k || (!k && EROList.length >= 1)"
+            v-show="k || (!k && lsp.EROList.length >= 1)"
           />
         </div>
       </div>
@@ -141,36 +149,14 @@
   </div>
 </template>
 <script>
-// data() {
-// 			return {
-// 				message: [],
-// 				username:null,
-// 				email:null
-// 			}
-// 		},
-// 		methods: {
-// 			addSuccessMessage() {
-// 				this.message = [{severity: 'success', content: 'Message Detail'}]
-// 			},
-// 			addInfoMessage() {
-// 				this.message = [{severity: 'info', content: 'Message Detail'}]
-// 			},
-// 			addWarnMessage() {
-// 				this.message = [{severity: 'warn', content: 'Message Detail'}]
-// 			},
-// 			addErrorMessage() {
-// 				this.message = [{severity: 'error', content: 'Message Detail'}]
-// 			},
-// 			showSuccess() {
-// 				this.$toast.add({severity:'success', summary: 'Success Message', detail:'Message Detail', life: 3000});
-
 import { HTTP } from "../service/http";
+import { reactive } from "vue";
+
 export default {
   data() {
     return {
       messages: [],
-      EROList: [],
-      lsp: {
+      emptyLSP: {
         Delegate: true,
         Sync: false,
         Remove: false,
@@ -190,17 +176,25 @@ export default {
             IPv4NodeID: "",
             SID: 0,
             NoSID: false,
-            IPv4Adjacency: ["", ""]
+            IPv4Adjacency: ["0", "0"]
           }
         ]
       }
     };
   },
   created() {},
+  computed: {
+    lsp() {
+      if (this.$route.params.new == "false") {
+        return reactive(this.$store.getters["lsp/lspToAdd"]);
+      }
+      return reactive(this.emptyLSP);
+    }
+  },
   mounted() {},
   methods: {
     add() {
-      this.EROList.push({
+      this.lsp.EROList.push({
         LooseHop: false,
         MBit: true,
         NT: 1,
@@ -208,15 +202,13 @@ export default {
         SID: 0,
         NoSID: false
       });
-      console.log(this.EROList);
     },
     remove(index) {
-      this.EROList.splice(index, 1);
+      console.log(index);
+      this.lsp.EROList.splice(index + 1, 1);
     },
     save() {
       this.messages = [];
-      this.lsp.EROList = this.lsp.EROList.concat(this.EROList);
-
       HTTP.post("lsp", this.lsp)
         .then(response => {
           console.log(response.data);
