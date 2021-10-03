@@ -6,6 +6,7 @@ import NetworkLSP from './components/NetworkLSP.vue';
 import ControllerLSP from './components/ControllerLSP.vue';
 import BGPList from './components/BGPList.vue';
 import AddLSP from './components/AddLSP.vue';
+import LSPOverview from './components/LSPOverview.vue';
 
 const routes = [
     {
@@ -43,6 +44,11 @@ const routes = [
         name: "AddLSP",
         props: true,
         component: AddLSP,
+    },
+    {
+        path: "/lspoverview",
+        name: "LSPOverview",
+        component: LSPOverview,
     }
 ];
 
