@@ -31,6 +31,7 @@ type SRLSP struct {
 
 // InitSRLSP aaaa
 func (s *Session) InitSRLSP(l *SRLSP) error {
+
 	sro, err := s.newSRPObject(l.SRPRemove)
 	if err != nil {
 		return err
@@ -68,8 +69,9 @@ func (s *Session) InitSRLSP(l *SRLSP) error {
 		}).Error(err)
 	}
 	logrus.WithFields(logrus.Fields{
-		"type":  "info",
-		"event": "Initiate Request",
+		"type":     "info",
+		"event":    "Initiate Request",
+		"lsp_name": l.Name,
 	}).Info(fmt.Sprintf("sent LSP Initiate Request: %d byte", i))
 	return nil
 }
