@@ -3,7 +3,6 @@ package restapi
 import (
 	"crypto/tls"
 	"embed"
-	"fmt"
 	"gopcep/certs"
 	"gopcep/controller"
 	"gopcep/pcep"
@@ -22,10 +21,15 @@ type handler struct {
 }
 
 func (h *handler) getSessions(c *gin.Context) {
-	defer h.ctr.RUnlock()
 
+	data := make(map[string]interface{})
 	h.ctr.RLock()
-	c.JSON(200, h.ctr.PCEPSessions)
+	for k, s := range h.ctr.PCEPSessions {
+		data[k] = s.CopyToExportableSession()
+	}
+	h.ctr.RUnlock()
+
+	c.JSON(200, data)
 }
 
 func (h *handler) getNetLSPs(c *gin.Context) {
@@ -89,8 +93,6 @@ func (h *handler) createUpdLSP(c *gin.Context) {
 		})
 		return
 	}
-
-	fmt.Println(lsp)
 
 	err = h.ctr.CreateUpdSRLSP(&lsp)
 	if err != nil {
