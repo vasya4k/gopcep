@@ -29,7 +29,7 @@ func parseErrObj(data []byte) (*ErrObj, error) {
 		return nil, err
 	}
 	if coh.ObjectClass != 13 {
-		return nil, errors.New("Object Class is not 13 ")
+		return nil, errors.New("object class is not 13 ")
 	}
 	et := map[int]map[int]string{
 		1: {

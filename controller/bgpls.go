@@ -306,7 +306,7 @@ func (t *TopoView) getSIDByIGPRouterID(routerID string) (uint32, error) {
 }
 
 func (t *TopoView) createSRLSP(bw uint32, path *Path) (*pcep.SRLSP, error) {
-	// printAsJSON(path)
+
 	if len(path.Links) == 0 {
 		return nil, fmt.Errorf("no links found in path")
 	}
