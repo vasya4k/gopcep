@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -12,6 +13,7 @@ import (
 
 //Session holds everything for a PCEP session
 type Session struct {
+	*sync.RWMutex
 	ID                uint8
 	MsgCount          uint64
 	State             int
@@ -44,14 +46,66 @@ func NewSession(conn net.Conn) *Session {
 		PLSPIDToName: make(map[uint32]string),
 		LSPs:         make(map[string]*LSP),
 		SessionReady: make(chan bool),
+		RWMutex:      &sync.RWMutex{},
+		SRCap:        &SRPCECap{},
+		StatefulCap:  &StatefulPCECapability{},
+		Open:         &OpenObject{},
+	}
+}
+
+// ExportableSession is used as a copy of the sessions
+// for exemple when you need to serialise it as JSON
+// it is easier and probably faster to copy rather than
+// hold the lock while we marshal. Alos the copy can be use to matshal
+// into anything not only JSON
+type ExportableSession struct {
+	ID          uint8
+	MsgCount    uint64
+	State       int
+	Conn        net.Conn
+	RemoteOK    bool
+	LocalOK     bool
+	Keepalive   uint8
+	DeadTimer   uint8
+	IDCounter   uint32
+	SRPID       uint32
+	SRCap       SRPCECap
+	StatefulCap StatefulPCECapability
+	Open        OpenObject
+}
+
+func (s *Session) CopyToExportableSession() *ExportableSession {
+	defer s.RUnlock()
+	fmt.Println("UUUUU")
+	s.RLock()
+	fmt.Println("KKKKKK")
+	return &ExportableSession{
+		ID:          s.ID,
+		MsgCount:    s.MsgCount,
+		State:       s.State,
+		Conn:        s.Conn,
+		RemoteOK:    s.RemoteOK,
+		LocalOK:     s.LocalOK,
+		Keepalive:   s.Keepalive,
+		DeadTimer:   s.DeadTimer,
+		IDCounter:   s.IDCounter,
+		SRPID:       s.SRPID,
+		SRCap:       *s.SRCap,
+		StatefulCap: *s.StatefulCap,
+		Open:        *s.Open,
 	}
 }
 
 func (s *Session) GetSrcAddrFromSession() string {
+	defer s.RUnlock()
+	s.RLock()
 	return strings.Split(s.Conn.RemoteAddr().String(), ":")[0]
 }
 
 func (s *Session) saveUpdLSP(lsp *LSP) {
+	defer s.Unlock()
+
+	s.Lock()
 
 	if lsp.Name != "" {
 		s.LSPs[lsp.Name] = lsp
@@ -63,6 +117,10 @@ func (s *Session) saveUpdLSP(lsp *LSP) {
 }
 
 func (s *Session) delLSP(lsp *LSP) {
+	defer s.Unlock()
+
+	s.Lock()
+
 	if lsp.Name != "" {
 		delete(s.LSPs, lsp.Name)
 		delete(s.PLSPIDToName, lsp.PLSPID)
@@ -73,15 +131,12 @@ func (s *Session) delLSP(lsp *LSP) {
 	}
 }
 
-func (s *Session) getLSP(lsp *LSP) *LSP {
-	if lsp.Name != "" {
-		return s.LSPs[lsp.Name]
-	}
-	return s.LSPs[s.PLSPIDToName[lsp.PLSPID]]
-}
-
 //ProcessOpen recive msg handler
 func (s *Session) ProcessOpen(data []byte) {
+	defer s.Unlock()
+
+	s.Lock()
+
 	logrus.WithFields(logrus.Fields{
 		"type": "open",
 		"peer": s.Conn.RemoteAddr().String(),
@@ -136,6 +191,9 @@ func (s *Session) ProcessOpen(data []byte) {
 
 //SendSessionOpen send OPEN msg handler
 func (s *Session) SendSessionOpen() {
+	defer s.Unlock()
+
+	s.Lock()
 	//[00100000 00000001 00000000 00011100]
 	commH := []byte{
 		0: 32,
@@ -206,13 +264,18 @@ func (s *Session) StartKeepAlive() {
 	}
 
 	var firstSent bool
+
+	s.RLock()
+	k := s.Keepalive
+	s.RUnlock()
+
 	for {
 		logrus.WithFields(logrus.Fields{
 			"peer":      s.Conn.RemoteAddr().String(),
 			"keepalive": s.Keepalive,
 		}).Info("sent keepalive")
 		if firstSent {
-			time.Sleep(time.Second * time.Duration(s.Keepalive))
+			time.Sleep(time.Second * time.Duration(k))
 		}
 		select {
 		case <-s.StopKA: // triggered when the stop channel is closed
@@ -301,7 +364,10 @@ func (s *Session) HandleNewMsg(data []byte) {
 			s.ProcessOpen(data[offset+4:])
 			s.SendSessionOpen()
 
+			s.Lock()
 			s.State = 2
+			s.Unlock()
+
 			go s.StartKeepAlive()
 			go s.HandleDeadTimer()
 
@@ -313,10 +379,12 @@ func (s *Session) HandleNewMsg(data []byte) {
 
 			s.RcvKA <- true
 
+			s.Lock()
 			if s.State == 2 {
 				s.SessionReady <- true
 			}
 			s.State = 3
+			s.Unlock()
 
 		case ch.MessageType == 3:
 			log.Println("recv path computation request ")
@@ -326,7 +394,7 @@ func (s *Session) HandleNewMsg(data []byte) {
 			log.Println("recv notification ")
 		case ch.MessageType == 6:
 			fmt.Printf("len %d Whole ERR MSG: %08b \n", ch.MessageLength, data[:ch.MessageLength])
-			s.handleErrObj(data[4:])
+			s.handleErrObj(data[offset+4 : offset+ch.MessageLength])
 
 		case ch.MessageType == 7:
 			logrus.WithFields(logrus.Fields{
@@ -388,8 +456,8 @@ func startPCEPSession(conn net.Conn, controller Controller) {
 		controller.SessionEnd(strings.Split(conn.RemoteAddr().String(), ":")[0])
 	}()
 
-	buff := make([]byte, 1024)
 	for {
+		buff := make([]byte, 1024)
 		l, err := conn.Read(buff)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
@@ -399,6 +467,10 @@ func startPCEPSession(conn net.Conn, controller Controller) {
 			close(session.StopKA)
 			return
 		}
+		logrus.WithFields(logrus.Fields{
+			"remote_addr": conn.RemoteAddr().String(),
+			"len":         l,
+		}).Info("got some data ")
 		session.HandleNewMsg(buff[:l])
 	}
 }
