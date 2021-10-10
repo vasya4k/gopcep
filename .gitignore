@@ -9,3 +9,4 @@ scripts/routes.sh
 my.db
 ui/node_modules
 .DS_Store
+pcep/debug/debug.go
