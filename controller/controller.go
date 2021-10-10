@@ -17,7 +17,7 @@ import (
 
 // Controller represents TE controller
 type Controller struct {
-	sync.RWMutex
+	*sync.RWMutex
 	PCEPSessions           map[string]*pcep.Session
 	PCEPSessionsByLoopback map[string]*pcep.Session
 	NewSession             chan *pcep.Session
@@ -399,6 +399,7 @@ func Start(db *bolt.DB) *Controller {
 		LSPs:                   make(map[string]*pcep.SRLSP),
 		StopBGP:                make(chan bool),
 		Routers:                make(map[string]*Router),
+		RWMutex:                &sync.RWMutex{},
 		db:                     db,
 	}
 
@@ -435,9 +436,12 @@ func Start(db *bolt.DB) *Controller {
 					"type":  "topology",
 					"event": "update",
 				}).Info("new topology update running LSP optimisation")
+				c.RLock()
 				for _, session := range c.PCEPSessions {
 					c.InitSRLSPs(session)
 				}
+				c.RUnlock()
+
 			}
 		}
 	}()
@@ -544,8 +548,15 @@ func (c *Controller) InitSRLSPFullMesh(session *pcep.Session) {
 	}).Info("looking for best paths for all destinations")
 
 	for _, dst := range destinations {
+
 		bestPath := c.TopoView.findBestPath(0, srcAddr, dst)
 		if bestPath == nil {
+			logrus.WithFields(logrus.Fields{
+				"type":        "lsp_init",
+				"event":       "no_best_path_found",
+				"src_address": srcAddr,
+				"dss":         dst,
+			}).Info("failed to find any path to destination")
 			continue
 		}
 		logrus.WithFields(logrus.Fields{
