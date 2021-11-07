@@ -1,0 +1,46 @@
+{% if inventory_hostname in groups['bgp'] %}
+
+{% if rr_role == "reflector" %}
+
+{% set rr_group_name = "clients" %}
+
+{% for host in groups['bgp'] %}
+{% if (hostvars[host]['igp_loopback_ip'] != igp_loopback_ip) and ( hostvars[host]['rr_role'] == "reflector") %}
+set protocols bgp group ibgp neighbor {{  hostvars[host]['igp_loopback_ip'] }}
+{% endif %}
+{% endfor %}
+
+set protocols bgp group ibgp type internal
+set protocols bgp group ibgp local-address {{ igp_loopback_ip }}
+set protocols bgp group ibgp family inet-vpn unicast
+set protocols bgp group {{ rr_group_name }} cluster {{ igp_loopback_ip }}
+{% for host in groups['bgp'] %}
+{% if (hostvars[host]['igp_loopback_ip'] != igp_loopback_ip) and ( hostvars[host]['rr_role'] == "client") %}
+set protocols bgp group {{ rr_group_name }} neighbor {{  hostvars[host]['igp_loopback_ip'] }}
+{% endif %}
+{% endfor %}
+
+{% else %}
+
+{% set rr_group_name = "rr" %}
+{% for host in groups['bgp'] %}
+{% if (hostvars[host]['igp_loopback_ip'] != igp_loopback_ip) and ( hostvars[host]['rr_role'] == "reflector") %}
+set protocols bgp group {{ rr_group_name }} neighbor {{  hostvars[host]['igp_loopback_ip'] }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+set protocols bgp group {{ rr_group_name }} type internal
+set protocols bgp group {{ rr_group_name }} local-address {{ igp_loopback_ip }}
+set protocols bgp group {{ rr_group_name }} family inet-vpn unicast
+
+{% if bgpls == true %}
+set protocols bgp group bgpls type external
+set protocols bgp group bgpls family traffic-engineering unicast
+set protocols bgp group bgpls export nlri2bgp
+set protocols bgp group bgpls neighbor 192.168.1.14 multihop ttl 2
+set protocols bgp group bgpls neighbor 192.168.1.14 local-address 10.0.0.10
+set protocols bgp group bgpls neighbor 192.168.1.14 peer-as 65001
+{% endif %}
+
+{% endif %}

@@ -1,0 +1,10 @@
+set protocols isis level 1 disable
+set protocols isis level 2 wide-metrics-only
+set protocols isis traffic-engineering family inet shortcuts
+set protocols isis source-packet-routing srgb start-label 400000
+set protocols isis source-packet-routing srgb index-range 4000
+set protocols isis source-packet-routing node-segment ipv4-index {{ segment_ipv4_index }}
+set protocols isis interface all point-to-point
+set protocols isis interface all level 2 metric 10
+set protocols isis interface fxp0.0 disable
+set protocols isis interface lo0.0 passive

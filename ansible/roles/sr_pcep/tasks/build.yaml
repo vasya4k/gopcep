@@ -1,0 +1,81 @@
+---
+- name: Build base Juniper configuration
+  hosts: all-routers
+  roles:
+    - Juniper.junos
+  connection: local
+  gather_facts: no
+
+  vars_prompt:
+    - name: password
+      prompt: What is your password?
+      private: yes
+
+  vars:
+    username: "admin"
+
+  tasks:
+    - name: Generate configuration files
+      template: src=../templates/base.j2 dest=../files/tmp/{{ inventory_hostname }}.set
+
+    # - name: "Get diff before commiting anything"
+    #   juniper_junos_config:
+    #     diff: true
+    #     check: true
+    #     commit: false
+    #     config_mode: "exclusive"
+    #     logfile: "../files/tmp/{{ inventory_hostname }}.log"
+    #     diffs_file: "../files/tmp/{{ inventory_hostname }}.diff"
+    #     load: "merge"
+    #     src: "../files/tmp/{{ inventory_hostname }}.set"
+    #     username: "{{ username }}"
+    #     passwd: "{{ password }}"
+    #     format: "set"
+    #   register: response
+
+    # - name: "Print result"
+    #   debug:
+    #     var: response
+
+    # - name: "Push config with comit confirmed 5 minutes"
+    #   juniper_junos_config:
+    #     comment: "automatic ansible commit"
+    #     diff: true
+    #     logfile: "../files/tmp/{{ inventory_hostname }}.log"
+    #     diffs_file: "../files/tmp/{{ inventory_hostname }}.diff"
+    #     load: "merge"
+    #     src: "../files/tmp/{{ inventory_hostname }}.set"
+    #     confirm: 5
+    #     check_commit_wait: 4
+    #     username: "{{ username }}"
+    #     passwd: "{{ password }}"
+    #     format: "set"
+    #   register: response
+
+    # - name: "Print result"
+    #   debug:
+    #     var: response
+
+    - name: Confirm the previous commit with a commit check (but no commit)
+      juniper_junos_config:
+        check: false
+        diff: false
+        commit: true
+        username: "{{ username }}"
+        ssh_private_key_file: ~/.ssh/vmx
+      register: response
+
+    - name: Print the complete response
+      debug:
+        var: response
+
+  # - name: Execute commands to check
+  #   juniper_junos_command:
+  #     commands:
+  #         - "show mpls lsp"
+  #     provider: "{{ credentials }}"
+  #   register: response
+
+  # - name: Print the complete response
+  #   debug:
+  #     var: response

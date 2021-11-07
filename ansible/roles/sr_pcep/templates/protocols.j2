@@ -1,0 +1,14 @@
+set protocols source-packet-routing traceoptions file spring
+set protocols source-packet-routing traceoptions file size 1m
+set protocols source-packet-routing traceoptions flag all
+set protocols source-packet-routing lsp-external-controller pccd
+set protocols pcep pce pce1 local-address {{ mgmt_ip }}
+set protocols pcep pce pce1 destination-ipv4-address 192.168.1.14
+set protocols pcep pce pce1 destination-port 4189
+set protocols pcep pce pce1 pce-type active
+set protocols pcep pce pce1 pce-type stateful
+set protocols pcep pce pce1 lsp-provisioning
+set protocols pcep pce pce1 spring-capability
+set protocols pcep traceoptions file pcep
+set protocols pcep traceoptions file size 1m
+set protocols pcep traceoptions flag all

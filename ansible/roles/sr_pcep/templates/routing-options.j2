@@ -1,0 +1,8 @@
+set routing-options traceoptions file rpd
+set routing-options traceoptions file size 1m
+set routing-options traceoptions flag all
+set routing-options static route 192.168.20.0/24 next-hop 10.0.0.1
+set routing-options static route 192.168.0.0/24 next-hop 10.0.0.1
+set routing-options static route 192.168.1.0/24 next-hop 10.0.0.1
+set routing-options router-id {{ igp_loopback_ip }}
+set routing-options autonomous-system {{ autonomous_system }}

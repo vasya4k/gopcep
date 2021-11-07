@@ -1,0 +1,25 @@
+---
+mgmt_ip: 10.0.0.13
+mgmt_if_name: fxp0
+mgmt_dsc: "management interface into the cloud"
+igp_loopback_ip: 13.13.13.13
+iso_address: 49.0002.0192.0168.0013.00
+model: vmx
+autonomous_system: 65000
+rr_role: client
+lab: True
+bgpls: True
+segment_ipv4_index: 2013
+
+loopback_interfaces: []
+
+igp_interfaces:
+  - name: ge-0/0/0
+    unit: 0
+    ipv4_addr: 10.1.0.4/31
+    dsc: "vmxr4 ge-0/0/1"
+
+  - name: ge-0/0/1
+    unit: 0
+    ipv4_addr: 10.1.0.3/31
+    dsc: "vmxr2 ge-0/0/1"

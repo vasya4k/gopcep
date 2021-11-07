@@ -1,0 +1,15 @@
+
+set interfaces {{ mgmt_if_name }} unit 0 description "{{ mgmt_dsc }}"
+set interfaces {{ mgmt_if_name }} unit 0 family inet address {{ mgmt_ip }}/24
+set interfaces lo0 unit 0 family inet address {{ igp_loopback_ip }}/32
+set interfaces lo0 unit 0 family iso address {{ iso_address }}
+{% for iface in loopback_interfaces %}
+set interfaces {{ iface.name }} unit {{ iface.unit }} family inet address {{ iface.ipv4_addr }}
+{% endfor %}
+
+{% for iface in igp_interfaces %}
+set interfaces {{ iface.name }} description "{{ iface.dsc }}"
+set interfaces {{ iface.name }} unit {{ iface.unit }} family inet address {{ iface.ipv4_addr }}
+set interfaces {{ iface.name }} unit {{ iface.unit }} family iso
+set interfaces {{ iface.name }} unit {{ iface.unit }} family mpls maximum-labels 5
+{% endfor %}

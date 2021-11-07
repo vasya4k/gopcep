@@ -1,0 +1,5 @@
+
+set policy-options policy-statement accept-all from family traffic-engineering
+set policy-options policy-statement accept-all then accept
+set policy-options policy-statement nlri2bgp term 1 from family traffic-engineering
+set policy-options policy-statement nlri2bgp term 1 then accept

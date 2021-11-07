@@ -1,0 +1,30 @@
+---
+- name: "Get Junos OS configuration."
+  hosts: all-routers
+  roles:
+    - Juniper.junos
+  connection: local
+  gather_facts: no
+
+  vars_prompt:
+    - name: password
+      prompt: What is your password?
+      private: yes
+
+  vars:
+    username: "admin"
+
+  tasks:
+    - name: "Get committed configuration"
+      juniper_junos_config:
+        retrieve: "committed"
+        format: "set"
+        dest: "../files/{{ inventory_hostname }}.cfg"
+        username: "{{ username }}"
+        passwd: "{{ password }}"
+
+      register: response
+
+    - name: "Print result"
+      debug:
+        var: response.config_lines

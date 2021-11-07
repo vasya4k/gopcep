@@ -1,0 +1,19 @@
+
+set protocols mpls lsp-external-controller pccd
+set protocols mpls traffic-engineering database import policy accept-all
+set protocols mpls traffic-engineering database export policy accept-all
+set protocols mpls traceoptions file mpls
+set protocols mpls traceoptions file size 2m
+set protocols mpls traceoptions flag all
+set protocols mpls interface all
+set protocols mpls interface fxp0.0 disable
+
+
+
+{% if inventory_hostname in groups['bgp'] %}
+set routing-instances VRF1 instance-type vrf
+set routing-instances VRF1 interface lo0.1
+set routing-instances VRF1 route-distinguisher {{igp_loopback_ip}}:100
+set routing-instances VRF1 vrf-target target:{{ autonomous_system }}:100
+set routing-instances VRF1 vrf-table-label
+{% endif %}

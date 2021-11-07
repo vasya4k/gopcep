@@ -1,0 +1,15 @@
+set version 18.2R1.9
+set system login user admin uid 2000
+set system login user admin class super-user
+set system login user admin authentication ssh-rsa "{{ ssh_rsa_key }}"
+set system root-authentication encrypted-password "{{ root_pass_hash }}"
+set system host-name {{ inventory_hostname }}
+set system services ssh
+set system services extension-service request-response grpc clear-text port 50051
+set system services extension-service notification allow-clients address 0.0.0.0/0
+set system services netconf ssh port 830
+set system syslog user * any emergency
+set system syslog file messages any info
+set system syslog file messages authorization info
+set system syslog file interactive-commands interactive-commands any
+set chassis network-services enhanced-ip

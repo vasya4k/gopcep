@@ -10,3 +10,7 @@ my.db
 ui/node_modules
 .DS_Store
 pcep/debug/debug.go
+ansible/roles/sr_pcep/files/tmp/
+ansible/roles/common/files/
+ansible/roles/sr_pcep/templates/base.j2
+ansible/group_vars/all/vmxlab.yaml

@@ -1,0 +1,30 @@
+---
+all-routers:
+  hosts:
+    vmx1:
+      ansible_ssh_host: 10.0.0.11
+    vmx2:
+      ansible_ssh_host: 10.0.0.10
+    vmx3:
+      ansible_ssh_host: 10.0.0.13
+    vmx4:
+      ansible_ssh_host: 10.0.0.14
+    vmx5:
+      ansible_ssh_host: 10.0.0.15
+
+bgp:
+  hosts:
+    vmx1:
+      ansible_ssh_host: 10.0.0.11
+    vmx2:
+      ansible_ssh_host: 10.0.0.10
+    vmx3:
+      ansible_ssh_host: 10.0.0.13
+    vmx4:
+      ansible_ssh_host: 10.0.0.14
+    vmx5:
+      ansible_ssh_host: 10.0.0.15
+
+  vars:
+    ansible_connection: ansible.netcommon.netconf
+    ansible_network_os: junipernetworks.junos.junos
