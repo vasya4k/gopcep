@@ -76,9 +76,9 @@ type ExportableSession struct {
 
 func (s *Session) CopyToExportableSession() *ExportableSession {
 	defer s.RUnlock()
-	fmt.Println("UUUUU")
+
 	s.RLock()
-	fmt.Println("KKKKKK")
+
 	return &ExportableSession{
 		ID:          s.ID,
 		MsgCount:    s.MsgCount,

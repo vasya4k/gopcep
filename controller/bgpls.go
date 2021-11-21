@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gopcep/pcep"
 	"strings"
+	"sync"
 
 	"github.com/golang/protobuf/ptypes"
 	api "github.com/osrg/gobgp/api"
@@ -52,6 +53,7 @@ type Prefix struct {
 }
 
 type TopoView struct {
+	*sync.RWMutex
 	NodesByRouterID    map[string]*Node
 	NodesByIGPRouteID  map[string]*Node
 	LinksByIGPRouteID  []*Link
@@ -80,6 +82,7 @@ func NewTopoView() *TopoView {
 		PrefixByIGPRouteID: make(map[string]*Prefix),
 		Paths:              make(map[string][]*Path),
 		TopologyUpdate:     make(chan bool),
+		RWMutex:            &sync.RWMutex{},
 	}
 }
 
@@ -89,8 +92,20 @@ func getLinksCopyWithRemovedElement(fromLinks []*Link, index int) []*Link {
 	return append(links[:index], links[index+1:]...)
 }
 
-func (t *TopoView) FindAllPaths(src, dst string) {
+func (t *TopoView) FindPathsForAllSrcDstPairs() {
+	defer t.Unlock()
 
+	t.Lock()
+	for srcNode := range t.NodesByIGPRouteID {
+		for dstNode := range t.NodesByIGPRouteID {
+			if srcNode != dstNode {
+				t.FindAllPathsForSrcDst(srcNode, dstNode)
+			}
+		}
+	}
+}
+
+func (t *TopoView) FindAllPathsForSrcDst(src, dst string) {
 	for i, link := range t.LinksByIGPRouteID {
 		path := Path{
 			Src:   src,
@@ -154,6 +169,8 @@ func (t *TopoView) FindPath(src, dst string, previousLink *Link, path *Path, lin
 }
 
 func (t *TopoView) HandleNodeNLRI(lsMessage *anypb.Any, p *api.Path) {
+	defer t.Unlock()
+
 	var NLRINode api.LsNodeNLRI
 	err := ptypes.UnmarshalAny(lsMessage, &NLRINode)
 	if err != nil {
@@ -178,10 +195,13 @@ func (t *TopoView) HandleNodeNLRI(lsMessage *anypb.Any, p *api.Path) {
 			node.SRRangeEnd = int(LsAttribute.Node.SrCapabilities.Ranges[0].End)
 		}
 	}
+	t.Lock()
 	t.NodesByIGPRouteID[node.IGPRouteID] = node
 }
 
 func (t *TopoView) HandleLinkNLRI(lsMessage *anypb.Any, p *api.Path) {
+	defer t.Unlock()
+
 	var NLRILink api.LsLinkNLRI
 	err := ptypes.UnmarshalAny(lsMessage, &NLRILink)
 	if err != nil {
@@ -210,10 +230,13 @@ func (t *TopoView) HandleLinkNLRI(lsMessage *anypb.Any, p *api.Path) {
 			link.SRAdjacencySID = LsAttribute.Link.SrAdjacencySid
 		}
 	}
+	t.Lock()
 	t.LinksByIGPRouteID = append(t.LinksByIGPRouteID, link)
 }
 
 func (t *TopoView) HandlePrefixV4NLRI(lsMessage *anypb.Any, p *api.Path) {
+	defer t.Unlock()
+
 	var NLRIPrefix api.LsPrefixV4NLRI
 	err := ptypes.UnmarshalAny(lsMessage, &NLRIPrefix)
 	if err != nil {
@@ -235,6 +258,7 @@ func (t *TopoView) HandlePrefixV4NLRI(lsMessage *anypb.Any, p *api.Path) {
 			prefix.SRPrefixSID = LsAttribute.Prefix.SrPrefixSid
 		}
 	}
+	t.Lock()
 	t.PrefixByIGPRouteID[prefix.LocalNode] = prefix
 }
 

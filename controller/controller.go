@@ -507,13 +507,15 @@ func (c *Controller) InitSRLSPFullMesh(session *pcep.Session) {
 
 	start := time.Now()
 
-	for srcNode := range c.TopoView.NodesByIGPRouteID {
-		for dstNode := range c.TopoView.NodesByIGPRouteID {
-			if srcNode != dstNode {
-				c.TopoView.FindAllPaths(srcNode, dstNode)
-			}
-		}
-	}
+	// for srcNode := range c.TopoView.NodesByIGPRouteID {
+	// 	for dstNode := range c.TopoView.NodesByIGPRouteID {
+	// 		if srcNode != dstNode {
+	// 			c.TopoView.FindAllPaths(srcNode, dstNode)
+	// 		}
+	// 	}
+	// }
+	c.TopoView.FindPathsForAllSrcDstPairs()
+
 	logrus.WithFields(logrus.Fields{
 		"type":      "lsp_init",
 		"event":     "topo calc done",
