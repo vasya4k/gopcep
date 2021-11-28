@@ -56,7 +56,7 @@ func NewSession(conn net.Conn) *Session {
 // ExportableSession is used as a copy of the sessions
 // for exemple when you need to serialise it as JSON
 // it is easier and probably faster to copy rather than
-// hold the lock while we marshal. Alos the copy can be use to matshal
+// hold the lock while we marshal. Alos the copy can be used to matshal
 // into anything not only JSON
 type ExportableSession struct {
 	ID          uint8
@@ -439,6 +439,7 @@ func (s *Session) HandleNewMsg(data []byte) {
 type Controller interface {
 	SessionStart(*Session)
 	SessionEnd(string)
+	GetClients() []string
 }
 
 func startPCEPSession(conn net.Conn, controller Controller) {
