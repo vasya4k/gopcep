@@ -7,20 +7,11 @@
             <span class="block text-500 font-medium mb-3">Name</span>
             <div class="text-900 font-medium text-xl">{{ lsp.Name }}</div>
           </div>
-          <div
-            class="flex align-items-center justify-content-center bg-blue-100 border-round"
-            style="width:2.5rem;height:2.5rem"
-          >
-            <i class="pi pi-shopping-cart text-blue-500 text-xl"></i>
-          </div>
         </div>
         <span class="text-500">Bandwidth: </span>
         <span class="text-green-500 font-medium">{{ lsp.BW }} </span>
         <span class="text-500"> PLSPID: </span>
         <span class="text-green-500 font-medium">{{ lsp.PLSPID }} </span>
-        <span class="text-green-500 font-medium" v-if="lsp.Delegate == true">
-          Delegated</span
-        >
       </div>
     </div>
     <div class="col-12 lg:col-6 xl:col-3">
@@ -30,15 +21,9 @@
             <span class="block text-500 font-medium mb-3">Source</span>
             <div class="text-900 font-medium text-xl">{{ lsp.Src }}</div>
           </div>
-          <div
-            class="flex align-items-center justify-content-center bg-orange-100 border-round"
-            style="width:2.5rem;height:2.5rem"
-          >
-            <i class="pi pi-map-marker text-orange-500 text-xl"></i>
-          </div>
         </div>
-        <span class="text-green-500 font-medium">%52+ </span>
-        <span class="text-500">since last week</span>
+        <span class="text-green-500 font-medium"></span>
+        <span class="text-500"></span>
       </div>
     </div>
     <div class="col-12 lg:col-6 xl:col-3">
@@ -48,15 +33,9 @@
             <span class="block text-500 font-medium mb-3">Destination</span>
             <div class="text-900 font-medium text-xl">{{ lsp.Dst }}</div>
           </div>
-          <div
-            class="flex align-items-center justify-content-center bg-cyan-100 border-round"
-            style="width:2.5rem;height:2.5rem"
-          >
-            <i class="pi pi-inbox text-cyan-500 text-xl"></i>
-          </div>
         </div>
-        <span class="text-green-500 font-medium">520 </span>
-        <span class="text-500">newly registered</span>
+        <span class="text-green-500 font-medium"> </span>
+        <span class="text-500"></span>
       </div>
     </div>
     <div class="col-12 lg:col-6 xl:col-3">
@@ -83,12 +62,6 @@
               WEIRD
             </span>
           </div>
-          <div
-            class="flex align-items-center justify-content-center bg-purple-100 border-round"
-            style="width:2.5rem;height:2.5rem"
-          >
-            <i class="pi pi-comment text-purple-500 text-xl"></i>
-          </div>
         </div>
         <span class="text-500">Setup Priority: </span>
         <span class="text-green-500 font-medium">{{ lsp.SetupPrio }} </span>
@@ -98,6 +71,9 @@
         <span class="text-green-500 font-medium" v-if="lsp.Admin == true">
           UP
         </span>
+        <span class="text-green-500 font-medium" v-if="lsp.Delegate == true">
+          Delegated</span
+        >
       </div>
     </div>
 
