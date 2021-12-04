@@ -8,7 +8,8 @@ set protocols mpls traceoptions flag all
 set protocols mpls interface all
 set protocols mpls interface fxp0.0 disable
 
-
+set protocols rsvp interface all
+set protocols rsvp interface fxp0.0 disable
 
 {% if inventory_hostname in groups['bgp'] %}
 set routing-instances VRF1 instance-type vrf
