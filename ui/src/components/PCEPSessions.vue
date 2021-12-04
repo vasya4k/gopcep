@@ -4,18 +4,6 @@
       <div>
         <Panel header="PCEP Sessions" class="p-mt-5">
           <div class="card">
-            <Toolbar class="p-mb-4">
-              <template #left>
-                <Button
-                  label="Delete"
-                  icon="pi pi-trash"
-                  class="p-button-danger"
-                  @click="confirmDeleteSelected"
-                  :disabled="!selectedProducts || !selectedProducts.length"
-                />
-              </template>
-            </Toolbar>
-
             <DataTable
               ref="dt"
               :value="products"
@@ -32,18 +20,7 @@
               <template #header>
                 <div
                   class="table-header p-d-flex p-flex-column p-flex-md-row p-jc-md-between"
-                >
-                  <h5 class="p-mb-2 p-m-md-0 p-as-md-center">
-                    Manage Products
-                  </h5>
-                  <span class="p-input-icon-left">
-                    <i class="pi pi-search" />
-                    <InputText
-                      v-model="filters['global'].value"
-                      placeholder="Search..."
-                    />
-                  </span>
-                </div>
+                ></div>
               </template>
 
               <Column
@@ -97,20 +74,6 @@
                 :sortable="true"
                 style="min-width:10rem"
               >
-              </Column>
-              <Column :exportable="false">
-                <template #body="slotProps">
-                  <Button
-                    icon="pi pi-pencil"
-                    class="p-button-rounded p-button-success p-mr-2"
-                    @click="editProduct(slotProps.data)"
-                  />
-                  <Button
-                    icon="pi pi-trash"
-                    class="p-button-rounded p-button-warning"
-                    @click="confirmDeleteProduct(slotProps.data)"
-                  />
-                </template>
               </Column>
             </DataTable>
           </div>
