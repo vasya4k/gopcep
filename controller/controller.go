@@ -71,9 +71,11 @@ func (c *Controller) GetLSPs() []*pcep.LSP {
 	c.RLock()
 	var lsps []*pcep.LSP
 	for _, session := range c.PCEPSessions {
+		session.RLock()
 		for _, lsp := range session.LSPs {
 			lsps = append(lsps, lsp)
 		}
+		session.RUnlock()
 	}
 	return lsps
 }
@@ -278,6 +280,20 @@ func (c *Controller) GetRouters() ([]*Router, error) {
 		return nil, err
 	}
 	return routers, nil
+}
+
+func (c *Controller) GetClients() []string {
+	clients := make([]string, 0)
+
+	routers, err := c.GetRouters()
+	if err != nil {
+		return clients
+	}
+	for _, router := range routers {
+		clients = append(clients, router.PCEPSessionSrcIP)
+	}
+
+	return clients
 }
 
 func (c *Controller) GetRouterByPCEPSessionSrcIP(srcIP string) *Router {
@@ -507,13 +523,6 @@ func (c *Controller) InitSRLSPFullMesh(session *pcep.Session) {
 
 	start := time.Now()
 
-	// for srcNode := range c.TopoView.NodesByIGPRouteID {
-	// 	for dstNode := range c.TopoView.NodesByIGPRouteID {
-	// 		if srcNode != dstNode {
-	// 			c.TopoView.FindAllPaths(srcNode, dstNode)
-	// 		}
-	// 	}
-	// }
 	c.TopoView.FindPathsForAllSrcDstPairs()
 
 	logrus.WithFields(logrus.Fields{
@@ -557,7 +566,7 @@ func (c *Controller) InitSRLSPFullMesh(session *pcep.Session) {
 				"type":        "lsp_init",
 				"event":       "no_best_path_found",
 				"src_address": srcAddr,
-				"dss":         dst,
+				"dst":         dst,
 			}).Info("failed to find any path to destination")
 			continue
 		}
@@ -565,7 +574,7 @@ func (c *Controller) InitSRLSPFullMesh(session *pcep.Session) {
 			"type":        "lsp_init",
 			"event":       "best_path_found",
 			"src_address": srcAddr,
-			"dss":         dst,
+			"dst":         dst,
 			"path":        bestPath,
 		}).Info("looking for best paths for all destinations")
 

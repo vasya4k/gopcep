@@ -476,8 +476,8 @@ func startPCEPSession(conn net.Conn, controller Controller) {
 	}
 }
 
-func clientNotInConfig(conn net.Conn, cfg *Cfg) bool {
-	for _, ip := range cfg.PCClients {
+func clientNotInConfig(conn net.Conn, controller Controller) bool {
+	for _, ip := range controller.GetClients() {
 		if strings.Split(conn.RemoteAddr().String(), ":")[0] == ip {
 			return false
 		}
@@ -489,7 +489,6 @@ type Cfg struct {
 	ListenAddr string
 	ListenPort string
 	Keepalive  uint8
-	PCClients  []string
 }
 
 func ListenForNewSession(controller Controller, cfg *Cfg) error {
@@ -512,7 +511,7 @@ func ListenForNewSession(controller Controller, cfg *Cfg) error {
 			}).Error(err)
 			return err
 		}
-		if clientNotInConfig(conn, cfg) {
+		if clientNotInConfig(conn, controller) {
 			continue
 		}
 		logrus.WithFields(logrus.Fields{

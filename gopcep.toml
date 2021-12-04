@@ -2,7 +2,6 @@
   listen_addr = "192.168.1.14"
   listen_port = "4189"
   keepalive = 30
-  pcc_clients = ["10.0.0.10","10.0.0.11"]  
 
 [grpcapi]
   listen_addr = "127.0.0.1"
