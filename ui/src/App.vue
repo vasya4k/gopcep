@@ -56,12 +56,7 @@ export default {
           label: "Inventory",
           icon: "pi pi-fw pi-clone",
           items: [
-            { label: "Routers", icon: "pi pi-fw pi-user-edit", to: "/routers" },
-            {
-              label: "Services",
-              icon: "pi pi-fw pi-calendar",
-              to: "/"
-            }
+            { label: "Routers", icon: "pi pi-fw pi-user-edit", to: "/routers" }
           ]
         },
         {
@@ -72,11 +67,6 @@ export default {
               label: "Sessions",
               icon: "pi pi-fw pi-user-edit",
               to: "/sessions"
-            },
-            {
-              label: "Parameters",
-              icon: "pi pi-fw pi-calendar",
-              to: "/"
             }
           ]
         },
