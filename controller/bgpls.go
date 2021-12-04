@@ -330,11 +330,13 @@ func (t *TopoView) getSIDByIGPRouterID(routerID string) (uint32, error) {
 }
 
 func (t *TopoView) createSRLSP(bw uint32, path *Path) (*pcep.SRLSP, error) {
+	defer t.Unlock()
 
 	if len(path.Links) == 0 {
 		return nil, fmt.Errorf("no links found in path")
 	}
 
+	t.Lock()
 	srcPrefix, ok := t.PrefixByIGPRouteID[path.Src]
 	if !ok {
 		return nil, fmt.Errorf("src prefix not found for IGPID %s", path.Src)

@@ -47,7 +47,6 @@ func appCfg(cfgPath string) *cfg {
 			ListenAddr: viper.GetString("pcep.listen_addr"),
 			ListenPort: viper.GetString("pcep.listen_port"),
 			Keepalive:  uint8(viper.GetUint32("pcep.keepalive")),
-			PCClients:  viper.GetStringSlice("pcep.pcc_clients"),
 		},
 		grpcapi: grpcapi.Config{
 			ListenAddr: viper.GetString("grpcapi.listen_addr"),
