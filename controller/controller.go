@@ -34,6 +34,7 @@ type Controller struct {
 	db        *bolt.DB
 	bgpServer *gobgp.BgpServer
 	Routers   map[string]*Router
+	BGPLSCfg  *BGPGlobalCfg
 }
 type BGPLSPeer struct {
 	NeighborAddress     string
@@ -406,7 +407,7 @@ func (c *Controller) SessionEnd(key string) {
 }
 
 // Start  controller
-func Start(db *bolt.DB) *Controller {
+func Start(db *bolt.DB, bgpcfg *BGPGlobalCfg) *Controller {
 	c := &Controller{
 		PCEPSessions:           make(map[string]*pcep.Session),
 		PCEPSessionsByLoopback: make(map[string]*pcep.Session),
@@ -417,6 +418,7 @@ func Start(db *bolt.DB) *Controller {
 		Routers:                make(map[string]*Router),
 		RWMutex:                &sync.RWMutex{},
 		db:                     db,
+		BGPLSCfg:               bgpcfg,
 	}
 
 	err := c.LoadRouters()

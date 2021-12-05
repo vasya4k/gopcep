@@ -469,26 +469,17 @@ func getPeers() []*api.Peer {
 	}
 }
 
-type bgpGlobalCfg struct {
-	AS         uint32
-	RouterId   string
-	ListenPort int32
+type BGPGlobalCfg struct {
+	AS       uint32
+	RouterId string
 }
 
-func readBGPGlobalCfg() *bgpGlobalCfg {
-	return &bgpGlobalCfg{
-		AS:         65001,
-		RouterId:   "19.19.19.19",
-		ListenPort: -1, // gobgp won't listen on tcp:179
-	}
-}
-
-func prepBGPStartRequest(cfg *bgpGlobalCfg) *api.StartBgpRequest {
+func (c *Controller) prepBGPStartRequest() *api.StartBgpRequest {
 	return &api.StartBgpRequest{
 		Global: &api.Global{
-			As:         cfg.AS,
-			RouterId:   cfg.RouterId,
-			ListenPort: cfg.ListenPort,
+			As:         c.BGPLSCfg.AS,
+			RouterId:   c.BGPLSCfg.RouterId,
+			ListenPort: -1, // gobgp won't listen on tcp:179
 		},
 	}
 }
@@ -498,11 +489,9 @@ func (c *Controller) StartBGPLS() {
 	c.bgpServer = gobgp.NewBgpServer()
 	go c.bgpServer.Serve()
 
-	bgpCfg := readBGPGlobalCfg()
-
 	c.StopBGP = make(chan bool)
 
-	err := c.bgpServer.StartBgp(context.Background(), prepBGPStartRequest(bgpCfg))
+	err := c.bgpServer.StartBgp(context.Background(), c.prepBGPStartRequest())
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"type":  "bgp",

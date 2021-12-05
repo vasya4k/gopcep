@@ -26,6 +26,7 @@ type cfg struct {
 	restapi restapi.Config
 	pcep    pcep.Cfg
 	logCfg  logCfg
+	bgpls   controller.BGPGlobalCfg
 }
 
 func appCfg(cfgPath string) *cfg {
@@ -52,6 +53,10 @@ func appCfg(cfgPath string) *cfg {
 			ListenAddr: viper.GetString("grpcapi.listen_addr"),
 			ListenPort: viper.GetString("grpcapi.listen_port"),
 			Tokens:     viper.GetStringSlice("grpcapi.tokens"),
+		},
+		bgpls: controller.BGPGlobalCfg{
+			AS:       uint32(viper.GetUint32("bgpls.as")),
+			RouterId: viper.GetString("bgpls.router_id"),
 		},
 		restapi: restapi.Config{
 			Address:  viper.GetString("restapi.listen_addr"),
@@ -113,7 +118,7 @@ func startController(c *cli.Context) error {
 		}
 	}()
 
-	controller := controller.Start(db)
+	controller := controller.Start(db, &cfg.bgpls)
 
 	err = grpcapi.Start(&cfg.grpcapi, controller)
 	if err != nil {
