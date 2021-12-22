@@ -146,8 +146,6 @@ func (s *Session) HandlePCRpt(data []byte) {
 		return
 	}
 
-	printAsJSON(lsp)
-
 	if lsp.Remove {
 		logrus.WithFields(logrus.Fields{
 			"type":     "path computation lsp state report",
@@ -160,6 +158,15 @@ func (s *Session) HandlePCRpt(data []byte) {
 		s.delLSP(&lsp)
 		return
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"type":     "lsp state report",
+		"peer":     s.Conn.RemoteAddr().String(),
+		"event":    "lsp_info",
+		"lsp_src":  lsp.Src,
+		"lsp_dst":  lsp.Dst,
+		"lsp_name": lsp.Name,
+	}).Info("new lsp data")
 
 	s.saveUpdLSP(&lsp)
 }
