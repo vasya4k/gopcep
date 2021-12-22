@@ -353,8 +353,14 @@ export default {
             life: 3000
           });
         })
-        .catch(function(error) {
-          console.log(error);
+        .catch(error => {
+          console.log(this.router.ID);
+          this.$toast.add({
+            severity: "danger",
+            summary: "Failure",
+            detail: error,
+            life: 3000
+          });
         });
     },
     findIndexById(id) {
