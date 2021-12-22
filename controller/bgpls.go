@@ -277,7 +277,11 @@ func (t *TopoView) Monitor(p *api.Path) {
 	case lsMessage.Type == 3:
 		t.HandlePrefixV4NLRI(lsMessage.Nlri, p)
 	default:
-		logrus.Printf("uknown NLRI type: %d\n", lsMessage.Type)
+		logrus.WithFields(logrus.Fields{
+			"type":        "bgp",
+			"event":       "rcv_nlri",
+			"ls_msg_type": lsMessage.Type,
+		}).Error("recived uknown NLRI type")
 		return
 	}
 	logrus.WithFields(logrus.Fields{
@@ -435,38 +439,47 @@ func (t *TopoView) createSRLSP(bw uint32, path *Path) (*pcep.SRLSP, error) {
 // 	printAsJSON(topo.PrefixByIGPRouteID)
 // }
 
-func getPeers() []*api.Peer {
-	return []*api.Peer{
-		{
-			Conf: &api.PeerConf{
-				NeighborAddress: "10.0.0.10",
-				PeerAs:          65000,
+func (c *Controller) getPeers() []*api.Peer {
+	peers := make([]*api.Peer, 0)
+
+	routers, err := c.GetRouters()
+	if err != nil {
+		return peers
+	}
+	for _, router := range routers {
+		if router.BGPLSPeer {
+			peers = append(peers, &api.Peer{Conf: &api.PeerConf{
+				NeighborAddress: router.BGPLSPeerCfg.NeighborAddress,
+				PeerAs:          uint32(router.BGPLSPeerCfg.PeerAs),
 			},
-			EbgpMultihop: &api.EbgpMultihop{
-				Enabled:     true,
-				MultihopTtl: 2,
-			},
-			ApplyPolicy: &api.ApplyPolicy{
-				ImportPolicy: &api.PolicyAssignment{
-					DefaultAction: api.RouteAction_ACCEPT,
+				EbgpMultihop: &api.EbgpMultihop{
+					Enabled:     router.BGPLSPeerCfg.EbgpMultihopEnabled,
+					MultihopTtl: uint32(router.BGPLSPeerCfg.EBGPMultihopTtl),
 				},
-				ExportPolicy: &api.PolicyAssignment{
-					DefaultAction: api.RouteAction_REJECT,
-				},
-			},
-			AfiSafis: []*api.AfiSafi{
-				{
-					Config: &api.AfiSafiConfig{
-						Family: &api.Family{
-							Afi:  api.Family_AFI_LS,
-							Safi: api.Family_SAFI_LS,
-						},
-						Enabled: true,
+				ApplyPolicy: &api.ApplyPolicy{
+					ImportPolicy: &api.PolicyAssignment{
+						DefaultAction: api.RouteAction_ACCEPT,
+					},
+					ExportPolicy: &api.PolicyAssignment{
+						DefaultAction: api.RouteAction_REJECT,
 					},
 				},
-			},
-		},
+				AfiSafis: []*api.AfiSafi{
+					{
+						Config: &api.AfiSafiConfig{
+							Family: &api.Family{
+								Afi:  api.Family_AFI_LS,
+								Safi: api.Family_SAFI_LS,
+							},
+							Enabled: true,
+						},
+					},
+				}})
+		}
+
 	}
+
+	return peers
 }
 
 type BGPGlobalCfg struct {
@@ -499,7 +512,15 @@ func (c *Controller) StartBGPLS() {
 		}).Error(err)
 	}
 
-	err = c.bgpServer.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) { logrus.Info(p) })
+	err = c.bgpServer.MonitorPeer(context.Background(), &api.MonitorPeerRequest{}, func(p *api.Peer) {
+		logrus.WithFields(logrus.Fields{
+			"type":       "bgp",
+			"event":      "new_peer",
+			"peer_addr":  p.State.NeighborAddress,
+			"peer_as":    p.State.PeerAs,
+			"peer_state": p.State.SessionState,
+		}).Info("added new peer")
+	})
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"type":  "bgp",
@@ -507,7 +528,7 @@ func (c *Controller) StartBGPLS() {
 		}).Error("start MonitorPeer")
 	}
 
-	for _, peer := range getPeers() {
+	for _, peer := range c.getPeers() {
 		err = c.bgpServer.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer})
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
