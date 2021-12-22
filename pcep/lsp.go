@@ -16,7 +16,7 @@ func (s *Session) InitLSP(l *LSP) error {
 	if err != nil {
 		return err
 	}
-	lsp, err := s.newLSPObj(l.Delegate, l.Sync, l.Remove, l.Admin, l.Name)
+	lsp, err := s.newLSPObj(l.Delegate, l.Sync, l.Remove, l.Admin, l.Name, l.PLSPID)
 	if err != nil {
 		return err
 	}

@@ -86,16 +86,21 @@ func (c *Controller) DelSRLSP(name string) error {
 
 	c.Lock()
 
-	lsp, ok := c.LSPs[name]
+	ctrLSP, ok := c.LSPs[name]
 	if !ok {
 		return fmt.Errorf("no LSP named: %s found", name)
 	}
 
-	session, ok := c.PCEPSessionsByLoopback[lsp.Src]
+	session, ok := c.PCEPSessionsByLoopback[ctrLSP.Src]
+
+	lsp := session.GetLSP(name)
+
+	ctrLSP.SRPRemove = true
+	ctrLSP.PLSPID = lsp.PLSPID
 	// if sesstion exists we delete the LSP
 	// if not we just delete it from the DB and map
 	if ok {
-		err := session.InitSRLSP(lsp)
+		err := session.InitSRLSP(ctrLSP)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"type":  "session",
@@ -201,26 +206,37 @@ func (c *Controller) CreateUpdRouter(router *Router) error {
 		if err != nil {
 			return err
 		}
+
+		if router.ID == "" {
+			id := uuid.NewV4()
+			router.ID = id.String()
+
+			data, err := json.Marshal(router)
+			if err != nil {
+				return err
+			}
+			return b.Put([]byte(router.ID), data)
+		}
+
+		id, err := uuid.FromString(router.ID)
+		if err != nil {
+			return err
+		}
 		data, err := json.Marshal(router)
 		if err != nil {
 			return err
 		}
 		_, ok := c.Routers[router.ID]
 		if ok {
-			id, err := uuid.FromString(router.ID)
-			if err != nil {
-				return err
-			}
 			return b.Put(id.Bytes(), data)
 		}
-		id := uuid.NewV4()
-		router.ID = id.String()
-		return b.Put(id.Bytes(), data)
+
+		return fmt.Errorf("no router with id: %s found", router.ID)
 	})
-	c.Routers[router.ID] = router
 	if err != nil {
 		return err
 	}
+	c.Routers[router.ID] = router
 	return nil
 }
 
@@ -247,7 +263,7 @@ func (c *Controller) DeleteRouter(id string) error {
 			}
 		}
 		delete(c.Routers, r.ID)
-		return b.Delete(uid.Bytes())
+		return b.Delete([]byte(r.ID))
 	})
 	if err != nil {
 		return err
@@ -301,6 +317,7 @@ func (c *Controller) GetRouterByPCEPSessionSrcIP(srcIP string) *Router {
 	defer c.RUnlock()
 	c.RLock()
 	for _, router := range c.Routers {
+		fmt.Printf("router ip is:%s. srcIP is:%s. ", router.PCEPSessionSrcIP, srcIP)
 		if router.PCEPSessionSrcIP == srcIP {
 			return router
 		}
@@ -383,8 +400,12 @@ func (c *Controller) DeletePSession(key string) {
 }
 
 // StorePSessions aa
-func (c *Controller) StorePSessions(key string, value *pcep.Session) *pcep.Session {
+func (c *Controller) StorePSessions(key string, value *pcep.Session) (*pcep.Session, error) {
+
 	router := c.GetRouterByPCEPSessionSrcIP(value.GetSrcAddrFromSession())
+	if router == nil {
+		return value, fmt.Errorf("router with PCEP SRC addr: %s not found", value.GetSrcAddrFromSession())
+	}
 
 	c.Lock()
 	c.PCEPSessions[key] = value
@@ -393,12 +414,13 @@ func (c *Controller) StorePSessions(key string, value *pcep.Session) *pcep.Sessi
 
 	c.NewSession <- value
 
-	return value
+	return value, nil
 }
 
 // SessionStart aa
-func (c *Controller) SessionStart(session *pcep.Session) {
-	c.StorePSessions(session.GetSrcAddrFromSession(), session)
+func (c *Controller) SessionStart(session *pcep.Session) error {
+	_, err := c.StorePSessions(session.GetSrcAddrFromSession(), session)
+	return err
 }
 
 // SessionEnd aa
@@ -428,6 +450,22 @@ func Start(db *bolt.DB, bgpcfg *BGPGlobalCfg) *Controller {
 			"event": "load_routers",
 		}).Fatal(err)
 	}
+
+	// c.db.Update(func(tx *bolt.Tx) error {
+	// 	err := tx.DeleteBucket([]byte("routers"))
+	// 	if err != nil {
+	// 		return fmt.Errorf("delete bucket: %s", err)
+	// 	}
+	// 	return nil
+	// })
+
+	// printAsJSON(c.Routers)
+	// err = c.DeleteRouter("")
+	// if err != nil {
+	// 	fmt.Println("AAA", err)
+	// }
+	// printAsJSON(c.Routers)
+	// os.Exit(0)
 
 	c.LSPs, err = c.LoadLSPs()
 	if err != nil {
@@ -503,6 +541,15 @@ func (c *Controller) InitSRLSPs(session *pcep.Session) {
 		// we are only going to provision lsps
 		// for a router which coresponds to a given session
 		if router.LoopbackIP != lsp.Src {
+			continue
+		}
+
+		// Check if an LSP with the same name exists already
+		// and if so we do not init again
+		// LSP names are unique so to create one with the same name
+		// first we need to remove the existing one
+		sessionLSP := session.GetLSP(lsp.Name)
+		if sessionLSP != nil && sessionLSP.Oper == 2 {
 			continue
 		}
 

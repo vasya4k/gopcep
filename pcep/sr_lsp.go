@@ -27,6 +27,7 @@ type SRLSP struct {
 	LocalProtect bool
 	BW           uint32
 	SRPRemove    bool
+	PLSPID       uint32
 }
 
 // InitSRLSP aaaa
@@ -36,7 +37,7 @@ func (s *Session) InitSRLSP(l *SRLSP) error {
 	if err != nil {
 		return err
 	}
-	lsp, err := s.newLSPObj(l.Delegate, l.Sync, l.Remove, l.Admin, l.Name)
+	lsp, err := s.newLSPObj(l.Delegate, l.Sync, l.Remove, l.Admin, l.Name, l.PLSPID)
 	if err != nil {
 		return err
 	}
@@ -72,6 +73,7 @@ func (s *Session) InitSRLSP(l *SRLSP) error {
 		"type":     "info",
 		"event":    "Initiate Request",
 		"lsp_name": l.Name,
+		"plsp_id":  l.PLSPID,
 	}).Info(fmt.Sprintf("sent LSP Initiate Request: %d byte", i))
 	return nil
 }
@@ -93,7 +95,6 @@ func (s *Session) newSRPObject(removeLSP bool) ([]byte, error) {
 	if s.SRPID == 4294967295 {
 		s.SRPID = 0
 	}
-
 	s.SRPID++
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.BigEndian, flags)
@@ -138,7 +139,7 @@ func newPathSetupObj() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// https://tools.ietf.org/html/rfc8231#section-7.3.2
+// https://tools.ietf.org/html/rfc8231#secti	on-7.3.2
 // Type (16 bits): the type is 17.
 func newPathName(name string) ([]byte, error) {
 	var objType uint16 = 17
@@ -231,13 +232,13 @@ func newEndpointsObj(srcStr, dstStr string) ([]byte, error) {
 // so not accepting it as a param
 //    LSP Object-Class is 32.
 //    LSP Object-Type is 1.
-func (s *Session) newLSPObj(delegate, sync, remove, admin bool, name string) ([]byte, error) {
+func (s *Session) newLSPObj(delegate, sync, remove, admin bool, name string, PLSPID uint32) ([]byte, error) {
 	// s.IDCounter++
 	// 2 ** 20 - 1 = 1048575 checking for overflow of 20bits
 	// if s.IDCounter > 1048575 {
 	// 	return nil, errors.New("session id limit reached > 1048575 exiting")
 	// }
-	body := bits.RotateLeft32(s.IDCounter, 4)
+	body := bits.RotateLeft32(PLSPID, 12)
 	if delegate {
 		// setting delegate flag at possition 0
 		body |= (1 << 0)
@@ -247,11 +248,11 @@ func (s *Session) newLSPObj(delegate, sync, remove, admin bool, name string) ([]
 		body |= (1 << 1)
 	}
 	if remove {
-		// setting remove flag at possition 1
+		// setting remove flag at possition 2
 		body |= (1 << 2)
 	}
 	if admin {
-		// setting remove flag at possition 1
+		// setting remove flag at possition 3
 		body |= (1 << 3)
 	}
 	buf := new(bytes.Buffer)

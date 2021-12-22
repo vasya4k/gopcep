@@ -130,6 +130,13 @@ func (s *Session) delLSP(lsp *LSP) {
 		delete(s.PLSPIDToName, lsp.PLSPID)
 	}
 }
+func (s *Session) GetLSP(name string) *LSP {
+	defer s.RUnlock()
+
+	s.RLock()
+
+	return s.LSPs[name]
+}
 
 //ProcessOpen recive msg handler
 func (s *Session) ProcessOpen(data []byte) {
@@ -437,14 +444,21 @@ func (s *Session) HandleNewMsg(data []byte) {
 }
 
 type Controller interface {
-	SessionStart(*Session)
+	SessionStart(*Session) error
 	SessionEnd(string)
 	GetClients() []string
 }
 
 func startPCEPSession(conn net.Conn, controller Controller) {
 	session := NewSession(conn)
-	controller.SessionStart(session)
+	err := controller.SessionStart(session)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"topic":       "session start err",
+			"remote_addr": conn.RemoteAddr().String(),
+		}).Error(err)
+		return
+	}
 
 	defer func() {
 		err := conn.Close()
