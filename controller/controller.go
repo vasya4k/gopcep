@@ -31,28 +31,22 @@ type Controller struct {
 	// from the router. Below are the LSPs initiated by us.
 	// In theory there can be other LSPs delegated to us and they are stored
 	// inside the PCEP Session struct so we need two lists.
-	lsps                   map[string]*pcep.SRLSP
+	// lsps                   map[string]*pcep.SRLSP
 	PCEPSessions           map[string]*pcep.Session
 	PCEPSessionsByLoopback map[string]*pcep.Session
 	Routers
+	LSPs
 }
 
 func (c *Controller) GetSRLSPs() []*pcep.SRLSP {
-
 	var lsps []*pcep.SRLSP
-	for _, lsp := range c.LSPs {
-		lsps = append(lsps, lsp)
-	}
+
+	c.RangeLSPs(func(key, value interface{}) bool {
+		lsps = append(lsps, value.(*pcep.SRLSP))
+		return true
+	})
+
 	return lsps
-}
-
-func (c *Controller) StoreSRLSPs(key string, value *pcep.SRLSP) *pcep.SRLSP {
-	c.Lock()
-
-	c.LSPs[key] = value
-
-	c.Unlock()
-	return value
 }
 
 func (c *Controller) GetLSPs() []*pcep.LSP {
@@ -75,7 +69,7 @@ func (c *Controller) DelSRLSP(name string) error {
 
 	c.Lock()
 
-	ctrLSP, ok := c.LSPs[name]
+	ctrLSP, ok := c.GetLSP(name)
 	if !ok {
 		return fmt.Errorf("no LSP named: %s found", name)
 	}
@@ -104,13 +98,13 @@ func (c *Controller) DelSRLSP(name string) error {
 		if err != nil {
 			return err
 		}
-		delete(c.LSPs, lsp.Name)
+		c.DelLSP(lsp.Name)
 		return b.Delete([]byte(lsp.Name))
 	})
 	if err != nil {
 		return err
 	}
-	delete(c.LSPs, lsp.Name)
+	c.DelLSP(lsp.Name)
 
 	return nil
 }
@@ -148,17 +142,13 @@ func (c *Controller) CreateUpdSRLSP(lsp *pcep.SRLSP) error {
 	if err != nil {
 		return err
 	}
-	c.LSPs[lsp.Name] = lsp
+	c.StoreLSP(lsp.Name, lsp)
 
 	return nil
 }
 
 // LoadLSPs retrive all LSP stored in Bolt DB used to init
-func (c *Controller) LoadLSPs() (map[string]*pcep.SRLSP, error) {
-	defer c.RUnlock()
-	c.RLock()
-
-	lsps := make(map[string]*pcep.SRLSP)
+func (c *Controller) LoadLSPs() error {
 
 	err := c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("lsps"))
@@ -170,7 +160,7 @@ func (c *Controller) LoadLSPs() (map[string]*pcep.SRLSP, error) {
 				if err != nil {
 					return err
 				}
-				lsps[string(k)] = &LSP
+				c.StoreLSP(string(k), &LSP)
 				return nil
 
 			})
@@ -181,9 +171,9 @@ func (c *Controller) LoadLSPs() (map[string]*pcep.SRLSP, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return lsps, nil
+	return nil
 }
 
 // CreateUpdRouter aa
@@ -407,9 +397,9 @@ func Start(db *bolt.DB, bgpcfg *BGPGlobalCfg) *Controller {
 		PCEPSessionsByLoopback: make(map[string]*pcep.Session),
 		NewSession:             make(chan *pcep.Session),
 		TopoView:               NewTopoView(),
-		LSPs:                   make(map[string]*pcep.SRLSP),
 		StopBGP:                make(chan bool),
 		Routers:                Routers{},
+		LSPs:                   LSPs{},
 		RWMutex:                &sync.RWMutex{},
 		db:                     db,
 		BGPLSCfg:               bgpcfg,
@@ -423,7 +413,7 @@ func Start(db *bolt.DB, bgpcfg *BGPGlobalCfg) *Controller {
 		}).Fatal(err)
 	}
 
-	c.LSPs, err = c.LoadLSPs()
+	err = c.LoadLSPs()
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"type":  "controller",
@@ -594,7 +584,7 @@ func (c *Controller) InitSRLSPFullMesh(session *pcep.Session) {
 		// this needs to be turned into proper comparation of LSPs
 		// so if the new LSP is the same no point touching it
 		// need to copare ERO list and other options to decide if we need to update
-		_, ok := c.LSPs[lsp.Name]
+		_, ok := c.GetLSP(lsp.Name)
 		if ok {
 			continue
 		}
@@ -615,7 +605,7 @@ func (c *Controller) InitSRLSPFullMesh(session *pcep.Session) {
 			}).Error(err)
 		}
 
-		c.StoreSRLSPs(lsp.Name, lsp)
+		c.StoreLSP(lsp.Name, lsp)
 
 		logrus.WithFields(logrus.Fields{
 			"type": "lsp_provision",
