@@ -296,16 +296,6 @@ func (c *Controller) GetClients() []string {
 }
 
 func (c *Controller) GetRouterByPCEPSessionSrcIP(srcIP string) *Router {
-	// defer c.RUnlock()
-	// c.RLock()
-
-	// for _, router := range c.Routers {
-
-	// 	if router.PCEPSessionSrcIP == srcIP {
-	// 		return router
-	// 	}
-	// }
-
 	var r *Router
 
 	c.RangeRouters(func(key, value interface{}) bool {
@@ -318,19 +308,6 @@ func (c *Controller) GetRouterByPCEPSessionSrcIP(srcIP string) *Router {
 
 	return r
 }
-
-// func (c *Controller) GetPCEPSessionByLoopback(loopback string) *Router {
-// 	defer c.RUnlock()
-// 	c.RLock()
-
-// 	for _, router := range c.Routers {
-// 		if router.PCEPSessionSrcIP == loopback {
-// 			return router
-// 		}
-// 	}
-
-// 	return nil
-// }
 
 func (c *Controller) LoadRouters() error {
 	routers, err := c.GetRouters()
