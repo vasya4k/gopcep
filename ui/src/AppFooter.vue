@@ -1,13 +1,6 @@
 <template>
   <div class="layout-footer">
-    <img
-      alt="Logo"
-      :src="darkTheme ? 'images/logo-dark.svg' : 'images/logo-white.svg'"
-      height="20"
-      class="mr-2"
-    />
-    by
-    <span class="font-medium ml-2">Chetki Design Buro</span>
+    <span class="font-medium ml-2">Chetki Design Buro 2021</span>
   </div>
 </template>
 
