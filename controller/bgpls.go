@@ -33,19 +33,6 @@ type Node struct {
 	SRRangeEnd   int
 }
 
-type Link struct {
-	LocalNode       string
-	RemoteNode      string
-	IntIP           string
-	NeighbourIP     string
-	DefaultTEMetric uint32
-	IGPMetric       uint32
-	BW              float32
-	ReservableBW    float32
-	UnreservedBW    float32
-	SRAdjacencySID  uint32
-}
-
 type Prefix struct {
 	Prefix      string
 	SRPrefixSID uint32
@@ -54,33 +41,19 @@ type Prefix struct {
 
 type TopoView struct {
 	*sync.RWMutex
-	NodesByRouterID    map[string]*Node
-	NodesByIGPRouteID  map[string]*Node
+	Paths
 	LinksByIGPRouteID  []*Link
+	NodesByIGPRouteID  map[string]*Node
 	PrefixByIGPRouteID map[string]*Prefix
-	Paths              map[string][]*Path
 	TopologyUpdate     chan bool `json:"-"`
-}
-
-type PathID struct {
-	Src string
-	Dst string
-}
-
-type Path struct {
-	Src   string
-	Dst   string
-	Cost  int
-	Links []*Link
 }
 
 func NewTopoView() *TopoView {
 	return &TopoView{
-		NodesByRouterID:    make(map[string]*Node),
 		NodesByIGPRouteID:  make(map[string]*Node),
 		LinksByIGPRouteID:  make([]*Link, 0),
 		PrefixByIGPRouteID: make(map[string]*Prefix),
-		Paths:              make(map[string][]*Path),
+		Paths:              Paths{},
 		TopologyUpdate:     make(chan bool),
 		RWMutex:            &sync.RWMutex{},
 	}
@@ -116,15 +89,15 @@ func (t *TopoView) FindAllPathsForSrcDst(src, dst string) {
 			path.Links = append(path.Links, link)
 			path.Cost = path.Cost + int(link.IGPMetric)
 			pID := src + ":" + dst
-			paths, ok := t.Paths[pID]
+			paths, ok := t.GetPath(pID)
 			if ok {
 				paths = append(paths, &path)
-				t.Paths[pID] = paths
+				t.StorePath(pID, paths)
 				continue
 			}
-			t.Paths[pID] = []*Path{
+			t.StorePath(pID, []*Path{
 				0: &path,
-			}
+			})
 			continue
 		}
 		// Found starting point
@@ -149,15 +122,15 @@ func (t *TopoView) FindPath(src, dst string, previousLink *Link, path *Path, lin
 			path.Cost = path.Cost + int(link.IGPMetric) + int(previousLink.IGPMetric)
 
 			pID := src + ":" + dst
-			paths, ok := t.Paths[pID]
+			paths, ok := t.GetPath(pID)
 			if ok {
 				paths = append(paths, path)
-				t.Paths[pID] = paths
+				t.StorePath(pID, paths)
 				return
 			}
-			t.Paths[pID] = []*Path{
+			t.StorePath(pID, []*Path{
 				0: path,
-			}
+			})
 			return
 		}
 		if previousLink.RemoteNode == link.LocalNode {
@@ -299,7 +272,8 @@ func (t *TopoView) Monitor(p *api.Path) {
 
 func (t *TopoView) findBestPath(bwNeeded int, src, dst string) *Path {
 	var bestPath *Path
-	for _, path := range t.Paths[src+":"+dst] {
+	paths, _ := t.GetPath(src + ":" + dst)
+	for _, path := range paths {
 		var bwAvailiable bool
 		for _, link := range path.Links {
 			if link.UnreservedBW > float32(bwNeeded) {

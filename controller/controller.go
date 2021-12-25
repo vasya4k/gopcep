@@ -542,15 +542,6 @@ func (c *Controller) InitSRLSPFullMesh(session *pcep.Session) {
 		"event":       "best_path_calc",
 		"src_address": srcAddr,
 		"dsts":        destinations,
-		"paths": func() []string {
-			keys := make([]string, len(c.TopoView.Paths))
-			i := 0
-			for k := range c.TopoView.Paths {
-				keys[i] = k
-				i++
-			}
-			return keys
-		}(),
 	}).Info("looking for best paths for all destinations")
 
 	for _, dst := range destinations {
