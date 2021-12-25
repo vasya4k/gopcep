@@ -1,5 +1,4 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import Dashboard from './components/Dashboard.vue';
 import RoutersList from './components/RoutersList.vue';
 import PCEPSessions from './components/PCEPSessions.vue';
 import NetworkLSP from './components/NetworkLSP.vue';
@@ -10,12 +9,7 @@ import LSPOverview from './components/LSPOverview.vue';
 
 const routes = [
     {
-        path: '/',
-        name: 'dashboard',
-        component: Dashboard,
-    },
-    {
-        path: "/routers",
+        path: "/",
         name: "Routers",
         component: RoutersList,
     },

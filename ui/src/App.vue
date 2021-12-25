@@ -43,21 +43,9 @@ export default {
       mobileMenuActive: false,
       menu: [
         {
-          label: "Home",
-          items: [
-            {
-              label: "Dashboard",
-              icon: "pi pi-fw pi-home",
-              to: "/"
-            }
-          ]
-        },
-        {
           label: "Inventory",
           icon: "pi pi-fw pi-clone",
-          items: [
-            { label: "Routers", icon: "pi pi-fw pi-user-edit", to: "/routers" }
-          ]
+          items: [{ label: "Routers", icon: "pi pi-fw pi-user-edit", to: "/" }]
         },
         {
           label: "PCEP",
@@ -88,11 +76,6 @@ export default {
           items: [
             { label: "BGP-LS", icon: "pi pi-fw pi-user-edit", to: "/bgpls" }
           ]
-        },
-        {
-          label: "Debug",
-          icon: "pi pi-fw pi-clone",
-          items: [{ label: "Tail", icon: "pi pi-fw pi-user-edit", to: "/" }]
         }
       ]
     };
