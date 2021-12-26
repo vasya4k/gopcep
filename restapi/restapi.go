@@ -20,6 +20,8 @@ type Config struct {
 	Port     string
 	CertFile string
 	KeyFile  string
+	User     string
+	Pass     string
 }
 
 type handler struct {
@@ -106,7 +108,7 @@ func StartREST(cfg *Config, controller *controller.Controller) error {
 	router.Use(newCORSMidleware())
 	// Add basic auth
 	router.Use(gin.BasicAuth(gin.Accounts{
-		"someuser": "somepasss",
+		cfg.User: cfg.Pass,
 	}))
 	// Serving static from embeded file system
 	router.StaticFS("/ui/", http.FS(f))

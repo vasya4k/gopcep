@@ -63,6 +63,8 @@ func appCfg(cfgPath string) *cfg {
 			Port:     viper.GetString("restapi.listen_port"),
 			CertFile: viper.GetString("restapi.certf_ile"),
 			KeyFile:  viper.GetString("restapi.key_file"),
+			User:     viper.GetString("restapi.user"),
+			Pass:     viper.GetString("restapi.pass"),
 		},
 		logCfg: logCfg{
 			LogLevel:        viper.GetUint32("log.level"),
