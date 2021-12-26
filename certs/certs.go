@@ -50,7 +50,7 @@ func GenCerts() (*tls.Certificate, *x509.CertPool, error) {
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"topic": "certs",
-			"event": "ECDSA private matshal failed",
+			"event": "ECDSA private marshal failed",
 		}).Error(err)
 		return nil, nil, err
 	}
