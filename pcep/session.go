@@ -2,7 +2,6 @@ package pcep
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -158,7 +157,12 @@ func (s *Session) ProcessOpen(data []byte) {
 		return
 	}
 	if h.ObjectClass != 1 && h.ObjectType != 1 {
-		log.Printf("Remote IP: %s, object class and object type do not match OPEN msg RFC definitions", s.Conn.RemoteAddr())
+		logrus.WithFields(logrus.Fields{
+			"type":   "err",
+			"caller": "RcvSessionOpen",
+			"func":   "parseCommonObjectHeader",
+		}).Error(fmt.Sprintf("Remote IP: %s, object class and object type do not match OPEN msg RFC definitions", s.Conn.RemoteAddr()))
+
 		return
 	}
 	s.Open, err = parseOpenObject(data[4:8])
@@ -249,12 +253,16 @@ func (s *Session) SendSessionOpen() {
 
 	i, err := s.Conn.Write(packet)
 	if err != nil {
-		log.Println(err)
+		logrus.WithFields(logrus.Fields{
+			"topic": "session",
+			"event": "conn_write_failure",
+			"peer":  s.Conn.RemoteAddr().String(),
+		}).Error(err)
 	}
 	logrus.WithFields(logrus.Fields{
 		"type":  "info",
 		"event": "open",
-	}).Info(fmt.Sprintf("Sent Open: %d byte", i))
+	}).Info(fmt.Sprintf("sent open: %d byte", i))
 }
 
 //StartKeepAlive start sending keep alive msgs
@@ -299,7 +307,7 @@ func (s *Session) StartKeepAlive() {
 				}).Error(err)
 				return
 			}
-			// log.Printf("keep alive sent %d bytes", i)
+
 			firstSent = true
 		}
 	}
@@ -360,8 +368,10 @@ func (s *Session) HandleNewMsg(data []byte) {
 		ch, err := parseCommonHeader(data[newOffset : newOffset+4])
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
-				"type": "err",
-				"func": "parseCommonHeader",
+				"type":  "session",
+				"event": "err",
+				"func":  "parseCommonHeader",
+				"peer":  s.Conn.RemoteAddr().String(),
 			}).Error(err)
 			return
 		}
@@ -380,9 +390,11 @@ func (s *Session) HandleNewMsg(data []byte) {
 
 		case ch.MessageType == 2:
 			logrus.WithFields(logrus.Fields{
-				"type": "keepalive",
-				"peer": s.Conn.RemoteAddr().String(),
-			}).Info("rcv new msg")
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+			}).Info("received new KA msg")
 
 			s.RcvKA <- true
 
@@ -394,27 +406,55 @@ func (s *Session) HandleNewMsg(data []byte) {
 			s.Unlock()
 
 		case ch.MessageType == 3:
-			log.Println("recv path computation request ")
+			logrus.WithFields(logrus.Fields{
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+				"msg":      parseClose(data[offset+8 : offset+12]),
+			}).Info("received path computation request")
 		case ch.MessageType == 4:
-			log.Println("recv path computation reply ")
+			logrus.WithFields(logrus.Fields{
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+				"msg":      parseClose(data[offset+8 : offset+12]),
+			}).Info("received path computation reply")
 		case ch.MessageType == 5:
-			log.Println("recv notification ")
-		case ch.MessageType == 6:
-			fmt.Printf("len %d Whole ERR MSG: %08b \n", ch.MessageLength, data[:ch.MessageLength])
-			s.handleErrObj(data[offset+4 : offset+ch.MessageLength])
+			logrus.WithFields(logrus.Fields{
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+				"msg":      parseClose(data[offset+8 : offset+12]),
+			}).Info("received new notification msg")
 
+		case ch.MessageType == 6:
+			logrus.WithFields(logrus.Fields{
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+				"msg":      parseClose(data[offset+8 : offset+12]),
+			}).Info(fmt.Sprintf("new err received with msg len %d and binary representation: %08b \n", ch.MessageLength, data[:ch.MessageLength]))
+
+			s.handleErrObj(data[offset+4 : offset+ch.MessageLength])
 		case ch.MessageType == 7:
 			logrus.WithFields(logrus.Fields{
-				"type": "close",
-				"peer": s.Conn.RemoteAddr().String(),
-				"msg":  parseClose(data[offset+8 : offset+12]),
-			}).Info("new msg")
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+				"msg":      parseClose(data[offset+8 : offset+12]),
+			}).Info("new close msg received")
 
 			err := s.Conn.Close()
 			if err != nil {
 				if err != nil {
 					logrus.WithFields(logrus.Fields{
-						"topic": "tcp conn close failure",
+						"topic": "conn_close",
+						"event": "close_failure",
 						"peer":  s.Conn.RemoteAddr().String(),
 					}).Error(err)
 				}
@@ -425,20 +465,28 @@ func (s *Session) HandleNewMsg(data []byte) {
 				"peer": s.Conn.RemoteAddr().String(),
 				"len":  ch.MessageLength,
 			}).Info("new msg")
-			// err := ioutil.WriteFile("/home/egorz/go/src/gopcep/dat1", data[:ch.MessageLength], 0644)
-			// if err != nil {
-			// 	log.Println(err)
-			// }
 			s.HandlePCRpt(data[offset+4 : offset+ch.MessageLength])
-			// fmt.Printf("%s %+v\n", "LSP", lsp)
-			// fmt.Printf("%s %+v\n", "LSPIdentifiers", parseLSPIdentifiers(data[32:52]))
 		case ch.MessageType == 11:
-			log.Println("Path Computation LSP Update Request")
+			logrus.WithFields(logrus.Fields{
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+			}).Info("Path Computation LSP Update Request")
 		case ch.MessageType == 12:
-			log.Println("LSP Initiate Request")
-
+			logrus.WithFields(logrus.Fields{
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+			}).Info("LSP Initiate Request")
 		default:
-			log.Println("Unknown msg received")
+			logrus.WithFields(logrus.Fields{
+				"type":     "session",
+				"event":    "new_msg",
+				"msg_type": ch.MessageType,
+				"peer":     s.Conn.RemoteAddr().String(),
+			}).Info("Unknown msg type received")
 		}
 	}
 }

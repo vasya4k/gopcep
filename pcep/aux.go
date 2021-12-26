@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -39,7 +38,10 @@ func readBits(by byte, subset ...uint) (r uint) {
 func printAsJSON(i interface{}) {
 	b, err := json.MarshalIndent(i, "", "  ")
 	if err != nil {
-		log.Println(err)
+		logrus.WithFields(logrus.Fields{
+			"type":  "json",
+			"event": "err",
+		}).Error(err)
 	}
 	fmt.Println(string(b))
 }

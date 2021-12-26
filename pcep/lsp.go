@@ -3,7 +3,6 @@ package pcep
 import (
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math"
 	"math/big"
 
@@ -49,7 +48,11 @@ func (s *Session) InitLSP(l *LSP) error {
 	ch = append(ch, msg...)
 	i, err := s.Conn.Write(ch)
 	if err != nil {
-		log.Println(err)
+		logrus.WithFields(logrus.Fields{
+			"type":  "session",
+			"event": "err",
+			"peer":  s.Conn.RemoteAddr().String(),
+		}).Error(err)
 	}
 	logrus.WithFields(logrus.Fields{
 		"type":  "session",
