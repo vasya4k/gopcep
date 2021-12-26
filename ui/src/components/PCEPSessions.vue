@@ -296,7 +296,7 @@
 
 <script>
 import { FilterMatchMode } from "primevue/api";
-import axios from "axios";
+import { HTTP } from "../service/http";
 
 export default {
   data() {
@@ -321,14 +321,7 @@ export default {
     this.initFilters();
   },
   mounted() {
-    axios({
-      method: "get",
-      url: "https://127.0.0.1:1443/v1/pcepsessions",
-      auth: {
-        username: "someuser",
-        password: "somepasss"
-      }
-    })
+    HTTP.get("pcepsessions")
       .then(response => {
         for (const [key, value] of Object.entries(response.data)) {
           let newSession = {};

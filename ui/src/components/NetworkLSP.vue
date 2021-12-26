@@ -151,7 +151,7 @@
 
 <script>
 import { FilterMatchMode } from "primevue/api";
-import axios from "axios";
+import { HTTP } from "../service/http";
 import { mapActions } from "vuex";
 
 export default {
@@ -180,14 +180,7 @@ export default {
     this.initFilters();
   },
   mounted() {
-    axios({
-      method: "get",
-      url: "https://127.0.0.1:1443/v1/pceplsps",
-      auth: {
-        username: "someuser",
-        password: "somepasss"
-      }
-    })
+    HTTP.get("pceplsps")
       .then(response => {
         this.products = response.data;
       })

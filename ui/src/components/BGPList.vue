@@ -129,7 +129,7 @@
 </template>
 
 <script>
-import axios from "axios";
+import { HTTP } from "../service/http";
 
 export default {
   data() {
@@ -146,14 +146,7 @@ export default {
   },
   productService: null,
   mounted() {
-    axios({
-      method: "get",
-      url: "https://127.0.0.1:1443/v1/bgpneighbors",
-      auth: {
-        username: "someuser",
-        password: "somepasss"
-      }
-    })
+    HTTP.get("bgpneighbors")
       .then(response => {
         this.products = response.data;
       })
