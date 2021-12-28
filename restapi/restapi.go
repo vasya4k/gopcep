@@ -6,6 +6,8 @@ import (
 	"gopcep/certs"
 	"gopcep/controller"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -22,10 +24,62 @@ type Config struct {
 	KeyFile  string
 	User     string
 	Pass     string
+	Debug    bool
 }
 
 type handler struct {
 	ctr *controller.Controller
+}
+
+// GetClientIP gets the correct IP for the end client instead of the proxy
+func GetClientIP(c *gin.Context) string {
+	// first check the X-Forwarded-For header
+	requester := c.Request.Header.Get("X-Forwarded-For")
+	// if empty, check the Real-IP header
+	if len(requester) == 0 {
+		requester = c.Request.Header.Get("X-Real-IP")
+	}
+	// if the requester is still empty, use the hard-coded address from the socket
+	if len(requester) == 0 {
+		requester = c.Request.RemoteAddr
+	}
+
+	// if requester is a comma delimited list, take the first one
+	// (this happens when proxied via elastic load balancer then again through nginx)
+	if strings.Contains(requester, ",") {
+		requester = strings.Split(requester, ",")[0]
+	}
+
+	return requester
+}
+
+// jsonLogMiddleware logs a gin HTTP request in JSON format, with some additional custom key/values
+func jsonLogMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+
+		// process request
+		c.Next()
+
+		entry := logrus.WithFields(logrus.Fields{
+			"client_ip": GetClientIP(c),
+			"duration": func() float64 {
+				milliseconds := float64(time.Since(start)) / float64(time.Millisecond)
+				return float64(milliseconds*100+.5) / 100
+			}(),
+			"method":     c.Request.Method,
+			"path":       c.Request.RequestURI,
+			"status":     c.Writer.Status(),
+			"referrer":   c.Request.Referer(),
+			"request_id": c.Writer.Header().Get("Request-Id"),
+		})
+
+		if c.Writer.Status() >= 500 {
+			entry.Error(c.Errors.String())
+		} else {
+			entry.Info("")
+		}
+	}
 }
 
 func (h *handler) getBGPNeighbors(c *gin.Context) {
@@ -102,14 +156,22 @@ func addAPIMethods(router *gin.Engine, controller *controller.Controller) {
 	apiV1.GET("/ctrlsps", h.getNetLSPs)
 }
 
-func StartREST(cfg *Config, controller *controller.Controller) error {
-	router := gin.Default()
+func Start(cfg *Config, controller *controller.Controller) error {
+	if !cfg.Debug {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	router := gin.New()
+
 	//Need cors if UI is served from a different server
 	router.Use(newCORSMidleware())
 	// Add basic auth
 	router.Use(gin.BasicAuth(gin.Accounts{
 		cfg.User: cfg.Pass,
 	}))
+
+	router.Use(jsonLogMiddleware())
+
 	// Serving static from embeded file system
 	router.StaticFS("/ui/", http.FS(f))
 
