@@ -16,3 +16,6 @@ ansible/roles/sr_pcep/templates/base.j2
 ansible/group_vars/all/vmxlab.yaml
 bugs.txt
 restapi/static
+server.crt
+.gitignore
+server.key
