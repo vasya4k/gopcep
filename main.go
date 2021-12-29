@@ -61,10 +61,11 @@ func appCfg(cfgPath string) *cfg {
 		restapi: restapi.Config{
 			Address:  viper.GetString("restapi.listen_addr"),
 			Port:     viper.GetString("restapi.listen_port"),
-			CertFile: viper.GetString("restapi.certf_ile"),
+			CertFile: viper.GetString("restapi.cert_file"),
 			KeyFile:  viper.GetString("restapi.key_file"),
 			User:     viper.GetString("restapi.user"),
 			Pass:     viper.GetString("restapi.pass"),
+			Debug:    viper.GetBool("restapi.debug"),
 		},
 		logCfg: logCfg{
 			LogLevel:        viper.GetUint32("log.level"),
@@ -130,7 +131,7 @@ func startController(c *cli.Context) error {
 		}).Fatal(err)
 	}
 
-	err = restapi.StartREST(&cfg.restapi, controller)
+	err = restapi.Start(&cfg.restapi, controller)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"topic": "restapi",
