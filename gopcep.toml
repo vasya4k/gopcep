@@ -1,5 +1,5 @@
 [pcep]
-  listen_addr = "192.168.1.14"
+  listen_addr = "127.0.0.1"
   listen_port = "4189"
   keepalive = 30
 
@@ -11,10 +11,11 @@
 [restapi]
   listen_addr = "127.0.0.1"
   listen_port = "1443"
-  certf_ile = ""
+  cert_file = ""
   key_file = ""
   user = ""
   pass = ""
+  debug = false
 
 [bgpls]
   as = 65001
