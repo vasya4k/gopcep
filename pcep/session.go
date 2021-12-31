@@ -573,12 +573,17 @@ func ListenForNewSession(controller Controller, cfg *Cfg) error {
 			}).Error(err)
 			return err
 		}
+		logrus.WithFields(logrus.Fields{
+			"remote_addr": conn.RemoteAddr().String(),
+			"local_addr":  conn.LocalAddr().String(),
+		}).Info("new connection")
+
 		if clientNotInConfig(conn, controller) {
 			continue
 		}
 		logrus.WithFields(logrus.Fields{
 			"remote_addr": conn.RemoteAddr().String(),
-		}).Info("new connection")
+		}).Info("new connection after client check")
 
 		go startPCEPSession(conn, controller)
 	}
