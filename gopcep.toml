@@ -1,15 +1,15 @@
 [pcep]
-  listen_addr = "127.0.0.1"
+  listen_addr = "0.0.0.0"
   listen_port = "4189"
   keepalive = 30
 
 [grpcapi]
-  listen_addr = "127.0.0.1"
+  listen_addr = "0.0.0.0"
   listen_port = "12345"
   tokens = ["boom"]  
 
 [restapi]
-  listen_addr = "127.0.0.1"
+  listen_addr = "0.0.0.0"
   listen_port = "1443"
   cert_file = ""
   key_file = ""
