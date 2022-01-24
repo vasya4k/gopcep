@@ -1,23 +1,32 @@
 [pcep]
+  #ip address to bind to and listen for incoming PCECP connections
   listen_addr = "0.0.0.0"
   listen_port = "4189"
   keepalive = 30
 
 [grpcapi]
+  #ip address to bind to and listen for gRpc API calls 
   listen_addr = "0.0.0.0"
   listen_port = "12345"
+  #token is like password if you need to set it to something if you want to use GRPC  
   tokens = [""]  
 
 [restapi]
+  #ip address to bind to and listen this is where you point your browser to 
   listen_addr = "0.0.0.0"
   listen_port = "1443"
+  #the cert and key files can be empty but in this case 
+  # you going to have to accept in your browser that connection 
+  # is not secure every time you restart goPCEP
   cert_file = ""
   key_file = ""
+  # username and password to log into the web interfaces and API
   user = ""
   pass = ""
   debug = false
 
 [bgpls]
+  # in case of BGP GoPCEP will accept connections 
   as = 65001
   router_id = "19.19.19.19"
 
