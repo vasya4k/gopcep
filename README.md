@@ -7,6 +7,8 @@ with support for PCE-Initiated LSP Setup in a Stateful PCE Model.
 
 As of now, GoPCEP has REST and gRPC APIs although gRPC is lagging behind REST in the number of methods it provides. There is also a Web UI so one can quickly start using GoPCEP.  
 
+
+
 ![UI screenshot](webui.png?raw=true "UI screenshot") 
 
 
@@ -27,7 +29,10 @@ The SSL certificates will be automatically generated on every run but you can ge
 
 You can also run from the source you need to have Go 1.16  installed then just clone the repo and run `go build` that will produce the executable which you can run `./gopcep` . 
 
-GoPCEP cannot run on Windows due to limitation ins [GoBGP](https://github.com/osrg/gobgp/issues/1978). Docker is also not yet supported due to the fact that at least on Mac docker does NAT when the router connect to the controller as a result GoBGP cannot identify the clients. The docker issue can potentially be solved but I have not looked into it deep enough yet.
+GoPCEP cannot run on Windows due to limitation in [GoBGP](https://github.com/osrg/gobgp/issues/1978). Docker is also not yet supported due to the fact that at least on Mac docker does NAT when the router connect to the controller as a result GoBGP cannot identify the clients. The docker issue can potentially be solved but I have not looked into it deep enough yet.
+
+Once you have started GoPCEP you can navigate to the address you set int the config under ResAPI setting in your browser. For example if you left the address as 0.0.0.0 you can go to https://127.0.0.1:1443/ you will see in your browser Your connection is not private
+you need to click advanced and then proceed. This happens because the certificates are self-signed there is not way to make this works cleanly when running on a laptop. 
 
 ## Contribution.
 Any contributions are welcome just submit a pull request. 
