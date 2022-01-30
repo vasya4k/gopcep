@@ -34,6 +34,9 @@ GoPCEP cannot run on Windows due to limitation in [GoBGP](https://github.com/osr
 Once you have started GoPCEP you can navigate to the address you set int the config under ResAPI setting in your browser. For example if you left the address as 0.0.0.0 you can go to https://127.0.0.1:1443/ you will see in your browser Your connection is not private
 you need to click advanced and then proceed. This happens because the certificates are self-signed there is not way to make this works cleanly when running on a laptop. 
 
+##PLEASE HEED
+You need to allow self signed certificates before the GUI can work for Chrome or Brave you can do chrome://flags/#allow-insecure-localhost. 
+
 ## Contribution.
 Any contributions are welcome just submit a pull request. 
 
