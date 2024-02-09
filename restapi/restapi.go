@@ -91,7 +91,7 @@ func (h *handler) getBGPNeighbors(c *gin.Context) {
 	c.JSON(200, list)
 }
 
-func newCORSMidleware() gin.HandlerFunc {
+func newCORSMidleware(cfg *Config) gin.HandlerFunc {
 	config := cors.DefaultConfig()
 	config.AllowHeaders = []string{"*"}
 	// Access to XMLHttpRequest at 'https://127.0.0.1:1443/v1/bgpneighbors'
@@ -100,7 +100,7 @@ func newCORSMidleware() gin.HandlerFunc {
 	// The value of the 'Access-Control-Allow-Origin' header in the
 	// response must not be the wildcard '*' when the request's credentials mode is 'include'.
 	// The credentials mode of requests initiated by the XMLHttpRequest is controlled by the withCredentials attribute.
-	config.AllowOrigins = []string{"http://localhost:8080", "http://localhost:8082"}
+	config.AllowOrigins = []string{"http://localhost:8080", "http://localhost:8082", "https://localhost:" + cfg.Port}
 	config.AllowMethods = []string{"*"}
 	config.ExposeHeaders = []string{"*"}
 	return cors.New(config)
@@ -164,7 +164,7 @@ func Start(cfg *Config, controller *controller.Controller) error {
 	router := gin.New()
 
 	//Need cors if UI is served from a different server
-	router.Use(newCORSMidleware())
+	router.Use(newCORSMidleware(cfg))
 	// Add basic auth
 	router.Use(gin.BasicAuth(gin.Accounts{
 		cfg.User: cfg.Pass,
@@ -172,7 +172,9 @@ func Start(cfg *Config, controller *controller.Controller) error {
 
 	router.Use(jsonLogMiddleware())
 
-	// Serving static from embeded file system
+	// /ui/static/
+	// Serving static from embedded file system
+	// router.StaticFS("static/", http.FS(f))
 	router.StaticFS("/ui/", http.FS(f))
 
 	router.GET("/", func(c *gin.Context) {
