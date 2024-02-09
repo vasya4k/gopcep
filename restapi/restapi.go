@@ -94,6 +94,7 @@ func (h *handler) getBGPNeighbors(c *gin.Context) {
 func newCORSMidleware(cfg *Config) gin.HandlerFunc {
 	config := cors.DefaultConfig()
 	config.AllowHeaders = []string{"*"}
+	config.AllowCredentials = true
 	// Access to XMLHttpRequest at 'https://127.0.0.1:1443/v1/bgpneighbors'
 	// from origin 'http://localhost:8080' has been blocked by CORS policy:
 	// Response to preflight request doesn't pass access control check:
