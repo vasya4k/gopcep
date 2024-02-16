@@ -8,8 +8,6 @@ import BGPList from '@/components/BGPList.vue';
 import AddLSP from '@/components/AddLSP.vue';
 import LSPOverview from '@/components/LSPOverview.vue';
 
-
-
 const router = createRouter({
     history: createWebHashHistory(),
     routes: [
@@ -18,40 +16,42 @@ const router = createRouter({
             component: AppLayout,
             children: [
                 {
-                    path: "/",
-                    name: "Routers",
-                    component: RoutersList,
+                    path: '/',
+                    name: 'Routers',
+                    component: RoutersList
                 },
                 {
-                    path: "/sessions",
-                    name: "Sessions",
-                    component: PCEPSessions,
+                    path: '/sessions',
+                    name: 'Sessions',
+                    component: PCEPSessions
                 },
                 {
-                    path: "/netlsps",
-                    name: "NetLSPs",
-                    component: NetworkLSP,
+                    path: '/netlsps',
+                    name: 'NetLSPs',
+                    component: NetworkLSP
                 },
                 {
-                    path: "/ctrlsps",
-                    name: "CtrLSPs",
-                    component: ControllerLSP,
+                    path: '/ctrlsps',
+                    name: 'CtrLSPs',
+                    component: ControllerLSP
                 },
                 {
-                    path: "/bgpls",
-                    name: "BGPLS",
-                    component: BGPList,
+                    path: '/bgpls',
+                    name: 'BGPLS',
+                    component: BGPList
                 },
                 {
-                    path: "/addlsp",
-                    name: "AddLSP",
-                    props: true,
-                    component: AddLSP,
+                    path: '/addlsp/:new',
+                    name: 'AddLSP',
+                    query: {
+                        new: true
+                      },
+                    component: AddLSP
                 },
                 {
-                    path: "/lspoverview",
-                    name: "LSPOverview",
-                    component: LSPOverview,
+                    path: '/lspoverview',
+                    name: 'LSPOverview',
+                    component: LSPOverview
                 }
             ]
         },

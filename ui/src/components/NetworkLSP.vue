@@ -82,7 +82,7 @@ export default {
                 <Panel header="Network LSPs" class="p-mt-4">
                     <div class="card">
                         <Toolbar class="p-mb-4">
-                            <template #right>
+                            <template v-slot:start>
                                 <Button label="Export" icon="pi pi-upload" class="p-button-help" @click="exportCSV($event)" />
                             </template>
                         </Toolbar>

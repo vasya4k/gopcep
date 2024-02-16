@@ -35,6 +35,7 @@ export default {
     created() {},
     computed: {
         lsp() {
+            console.log(this.$route.params);
             if (this.$route.params.new == 'false') {
                 return reactive(this.$store.getters['lsp/lspToAdd']);
             }
@@ -149,7 +150,7 @@ export default {
                     <Button label="Add Hop" class="p-button-raised p-button-secondary mr-2 mb-2" @click="add" />
                 </div>
                 <div class="col-12 mb-2 lg:col-4 lg:mb-0">
-                    <Button label="Cancel" class="p-button-raised p-button-warning mr-2 mb-2" @click="$router.push('ctrlsps')" />
+                    <Button label="Cancel" class="p-button-raised p-button-warning mr-2 mb-2" @click="$router.push({ name: 'CtrLSPs' })" />
                 </div>
                 <div class="col-12 mb-2 lg:col-4 lg:mb-0">
                     <Button label="Save" @click="save" class="p-button-raised mr-2 mb-2" />
