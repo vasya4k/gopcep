@@ -142,8 +142,6 @@ func (t *TopoView) FindPath(src, dst string, previousLink *Link, path *Path, lin
 }
 
 func (t *TopoView) HandleNodeNLRI(lsMessage *anypb.Any, p *api.Path) {
-	defer t.Unlock()
-
 	var NLRINode api.LsNodeNLRI
 	err := ptypes.UnmarshalAny(lsMessage, &NLRINode)
 	if err != nil {
@@ -170,6 +168,7 @@ func (t *TopoView) HandleNodeNLRI(lsMessage *anypb.Any, p *api.Path) {
 	}
 	t.Lock()
 	t.NodesByIGPRouteID[node.IGPRouteID] = node
+	t.Unlock()
 }
 
 func (t *TopoView) HandleLinkNLRI(lsMessage *anypb.Any, p *api.Path) {
