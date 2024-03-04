@@ -162,8 +162,12 @@ func (t *TopoView) HandleNodeNLRI(lsMessage *anypb.Any, p *api.Path) {
 			}
 			node.RouterID = LsAttribute.Node.LocalRouterId
 			node.Name = LsAttribute.Node.Name
-			node.SRRangeStart = int(LsAttribute.Node.SrCapabilities.Ranges[0].Begin)
-			node.SRRangeEnd = int(LsAttribute.Node.SrCapabilities.Ranges[0].End)
+			if LsAttribute.Node.SrCapabilities != nil {
+				node.SRRangeStart = int(LsAttribute.Node.SrCapabilities.Ranges[0].Begin)
+				node.SRRangeEnd = int(LsAttribute.Node.SrCapabilities.Ranges[0].End)
+			} else {
+				printAsJSON(LsAttribute)
+			}
 		}
 	}
 	t.Lock()
