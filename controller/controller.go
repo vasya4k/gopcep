@@ -71,12 +71,16 @@ func (c *Controller) DelSRLSP(name string) error {
 
 	ctrLSP, ok := c.GetLSP(name)
 	if !ok {
-		return fmt.Errorf("no LSP named: %s found", name)
+		return fmt.Errorf("no LSP named: %s found in controller db", name)
 	}
 
 	session, ok := c.PCEPSessionsByLoopback[ctrLSP.Src]
 
 	lsp := session.GetLSP(name)
+
+	if lsp == nil {
+		return fmt.Errorf("no LSP named: %s found in router PCEP session DB", name)
+	}
 
 	ctrLSP.SRPRemove = true
 	ctrLSP.PLSPID = lsp.PLSPID
